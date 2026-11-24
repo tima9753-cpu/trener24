@@ -33,7 +33,9 @@ async function openai(messages, json, maxTokens) {
   return j.choices[0].message.content;
 }
 
-const FOOD_PROMPT = 'Ты нутрициолог. Определи блюдо и оцени порцию. Ответь строго JSON по образцу: ' +
+const FOOD_PROMPT = 'Ты опытный нутрициолог. Определи блюдо и реалистично оцени вес порции: ориентируйся на размер тарелки, столовых приборов и рук. ' +
+  'Учитывай скрытые калории: масло при жарке, соусы, сахар в напитках. Если продуктов несколько, посчитай сумму по всей тарелке и перечисли их в названии через запятую. ' +
+  'Ответь строго JSON по образцу: ' +
   '{"n":"Плов с говядиной","g":300,"k":560,"p":22,"f":21,"c":70}, где n — название по-русски, g — вес всей порции в граммах, ' +
   'k — калории всей порции, p — белки, f — жиры, c — углеводы в граммах на всю порцию. Значения g,k,p,f,c — только целые числа без единиц измерения. ' +
   'Если на фото нет еды, ответь {"error":"На фото не видно еды"}.';
@@ -57,8 +59,8 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: 'Нет фото' });
       const out = await openai([
         { role: 'system', content: FOOD_PROMPT },
-        { role: 'user', content: [{ type: 'text', text: 'Что на тарелке?' }, { type: 'image_url', image_url: { url: b.image, detail: 'low' } }] }
-      ], true, 300);
+        { role: 'user', content: [{ type: 'text', text: 'Что на тарелке?' }, { type: 'image_url', image_url: { url: b.image, detail: 'high' } }] }
+      ], true, 400);
       return res.json(cleanFood(JSON.parse(out)));
     }
     if (b.type === 'text') {
