@@ -1,0 +1,19 @@
+{
+  "rewrites": [
+    {
+      "source": "/ex/:path*",
+      "destination": "https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/:path*"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/ex/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=604800, s-maxage=31536000"
+        }
+      ]
+    }
+  ]
+}
