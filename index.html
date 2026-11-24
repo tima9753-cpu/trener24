@@ -540,6 +540,7 @@ const mealPlan=()=>MP||localMeal();
 function sanitizeMeal(o){if(!o||!Array.isArray(o.days))return null;const nm=MEALS.map(x=>x[0]),n=v=>Math.max(0,Math.min(3000,Math.round(+String(v).replace(',','.'))||0));
  const days=o.days.slice(0,7).map(d=>({meals:(Array.isArray(d.meals)?d.meals:[]).filter(x=>x&&nm.includes(x.m)).slice(0,6).map(x=>({m:x.m,n:String(x.n||'Блюдо').slice(0,70),g:n(x.g)||200,k:n(x.k),p:n(x.p),f:n(x.f),c:n(x.c),r:String(x.r||'').slice(0,160)}))}));
  if(days.length<7||days.some(d=>!d.meals.length))return null;
+ const K=norm().k;days.forEach(d=>{const t=d.meals.reduce((a,x)=>a+x.k,0);if(!t)return;const q=Math.min(1.6,Math.max(.6,K/t));if(Math.abs(q-1)>.05)d.meals.forEach(x=>{['g','k','p','f','c'].forEach(f=>x[f]=Math.round(x[f]*q/(f==='g'?10:1))*(f==='g'?10:1))})});
  return{src:'ai',name:String(o.name||'Рацион от ИИ').slice(0,50),why:String(o.why||'').slice(0,300),days,shop:(Array.isArray(o.shop)?o.shop:[]).slice(0,25).map(x=>String(x).slice(0,60)),k:norm().k}}
 const mealText=m=>`${m.name}\n${m.why}\n\n`+m.days.map((d,i)=>`${DN[i]}: ${d.meals.map(x=>x.n).join(' · ')} — ${fmt(d.meals.reduce((a,x)=>a+x.k,0))} ккал`).join('\n');
 let mDay=wd(today);
