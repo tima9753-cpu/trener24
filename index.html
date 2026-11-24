@@ -262,6 +262,8 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 const tg=window.Telegram&&window.Telegram.WebApp;
 if(tg){try{tg.ready();tg.expand();tg.setHeaderColor&&tg.setHeaderColor('#121115');tg.setBackgroundColor&&tg.setBackgroundColor('#121115')}catch(e){}}
 const haptic=t=>{try{tg&&tg.HapticFeedback.impactOccurred(t||'light')}catch(e){}};
+const LIVE=!!(tg&&tg.initData)&&!location.hostname.endsWith('github.io');
+async function ai(p){const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...p,initData:tg.initData})});let j={};try{j=await r.json()}catch(e){}if(!r.ok||j.error)throw new Error(j.error||'Ошибка сервера');return j}
 const load=(k,d)=>{try{const v=localStorage.getItem('t24v2_'+k);return v?JSON.parse(v):d}catch(e){return d}};
 const save=(k,v)=>{try{localStorage.setItem('t24v2_'+k,JSON.stringify(v))}catch(e){}};
 const icon=(id,cls)=>`<svg${cls?` class="${cls}"`:''}><use href="#${id}"/></svg>`;
@@ -396,16 +398,17 @@ const FAV=[{n:'Овсянка с бананом и мёдом',g:300,k:390,p:13,
 function guessText(t){const l=t.toLowerCase(),base=DEMO.find(d=>l.includes(d.n.split(' ')[0].toLowerCase()));
  return base?{...base}:{n:t.charAt(0).toUpperCase()+t.slice(1),g:250,k:380,p:18,f:14,c:42}}
 function analyzing(img){openSheet(head('Распознаю блюдо…','ИИ смотрит на тарелку')+(img?`<img class="photo" src="${img}" alt="Фото еды">`:'')+'<div class="scan"></div>')}
+function aiFail(er){closeSheet();toast(String(er.message||'ИИ недоступен').slice(0,40))}
 function result(r,img){const base={...r};
  openSheet(head(esc(r.n),'Добавить в '+target)+(img?`<img class="photo" src="${img}" alt="">`:'')+`
  <div class="card" style="margin:12px 0;padding:14px"><div class="row"><span class="big" id="rk"></span><span style="color:var(--mute);font-weight:700">ккал</span></div><div class="macros" id="rm" style="margin-top:12px;padding-top:12px"></div></div>
  <div class="g2"><div><label for="rg">Порция, г</label><input id="rg" type="number" inputmode="numeric" value="${r.g}"></div><div><label for="rmeal">Приём пищи</label><select id="rmeal">${MEALS.map(([m])=>`<option ${m===target?'selected':''}>${m}</option>`).join('')}</select></div></div>
- <button class="btn" id="addR" style="margin-top:16px">Добавить в дневник</button><p class="note">Демо: в рабочей версии здесь будет ответ ИИ по фото</p>`);
+ <button class="btn" id="addR" style="margin-top:16px">Добавить в дневник</button>${LIVE?'<p class="note">Оценка ИИ — поправь вес порции, если нужно</p>':'<p class="note">Демо: в рабочей версии здесь будет ответ ИИ по фото</p>'}`);
  const upd=()=>{const q=(+$('#rg').value||0)/base.g;['k','p','f','c'].forEach(x=>r[x]=Math.round(base[x]*q));$('#rk').textContent=fmt(r.k);
   $('#rm').innerHTML=[['Б',r.p,'var(--pro)'],['Ж',r.f,'var(--fat)'],['У',r.c,'var(--carb)']].map(([l,v,c])=>`<div class="mac"><span class="lt" style="background:${c}">${l}</span><b>${v} г</b></div>`).join('')};
  upd();$('#rg').oninput=upd;$('#addR').onclick=()=>{day(selF).m[$('#rmeal').value].push({n:r.n,k:r.k,p:r.p,f:r.f,c:r.c,img:img||''});closeSheet();if(view!=='food')go('food');else render();haptic('medium');toast('Добавлено: '+r.k+' ккал')}}
 function onFile(e){const f=e.target.files[0];e.target.value='';if(!f)return;const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),s=Math.min(1,320/Math.max(im.width,im.height));c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);let u='';try{u=c.toDataURL('image/jpeg',.7)}catch(x){u=''}
- analyzing(u);setTimeout(()=>result({...DEMO[Math.floor(Math.random()*DEMO.length)]},u),1700)};im.src=rd.result};rd.readAsDataURL(f)}
+ analyzing(u);if(LIVE){const c2=document.createElement('canvas'),s2=Math.min(1,768/Math.max(im.width,im.height));c2.width=im.width*s2;c2.height=im.height*s2;c2.getContext('2d').drawImage(im,0,0,c2.width,c2.height);ai({type:'photo',image:c2.toDataURL('image/jpeg',.8)}).then(r=>result(r,u)).catch(er=>aiFail(er))}else setTimeout(()=>result({...DEMO[Math.floor(Math.random()*DEMO.length)]},u),1700)};im.src=rd.result};rd.readAsDataURL(f)}
 $('#file').onchange=onFile;$('#cam').onchange=onFile;
 
 /* ---------- timer ---------- */
@@ -426,7 +429,7 @@ function coach(){openSheet(head('ИИ-тренер','На связи 24/7')+`<di
  <form class="row" id="cf"><input id="ci" placeholder="Напиши вопрос…" autocomplete="off"><button class="send" aria-label="Отправить">➤</button></form>`);drawChat();
  $('#cf').onsubmit=e=>{e.preventDefault();ask($('#ci').value);$('#ci').value=''}}
 function drawChat(){const c=$('#chat');if(!c)return;c.innerHTML=C.map(m=>`<div class="msg ${m.a?'ai':'me'}">${esc(m.t)}</div>`).join('');c.scrollTop=c.scrollHeight;save('chat',C)}
-function ask(q){if(!q.trim())return;C.push({t:q});drawChat();setTimeout(()=>{C.push({a:1,t:reply(q)});drawChat()},500)}
+function ask(q){if(!q.trim())return;C.push({t:q});drawChat();if(LIVE){const c=$('#chat');if(c){c.insertAdjacentHTML('beforeend','<div class="msg ai">Печатает…</div>');c.scrollTop=c.scrollHeight}ai({type:'chat',messages:C.slice(-10),profile:P,norm:norm(),eaten:sum(key(today))}).then(r=>{C.push({a:1,t:r.reply});drawChat()}).catch(er=>{C.push({a:1,t:'Не получилось ответить: '+er.message+'. Попробуй ещё раз.'});drawChat()})}else setTimeout(()=>{C.push({a:1,t:reply(q)});drawChat()},500)}
 $('#openCoach').onclick=()=>{haptic();coach()};
 
 /* ---------- edit / onboarding / premium ---------- */
@@ -462,11 +465,12 @@ document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)r
  if(d.t!==undefined){selT=+d.t;render()}
  if(d.w!==undefined){const D=day(selF),i=+d.w;D.w=D.w===i+1?i:i+1;render();haptic()}
  if(d.add)addSheet(d.add);
+ if(d.q)ask(d.q);
  if(d.del){const[m,i]=d.del.split('|');day(selF).m[m].splice(+i,1);render()}
  if(d.act){const a=d.act;if(a==='cam')$('#cam').click();if(a==='gal')$('#file').click();
   if(a==='fav')openSheet(head('Избранное','Добавить в '+target)+FAV.map((f,i)=>`<button class="dish" data-fav="${i}" style="width:100%;text-align:left"><span class="ph">⭐</span><div class="sp"><div class="nm">${f.n}</div><small>${f.g} г · Б ${f.p} · Ж ${f.f} · У ${f.c}</small></div><span class="num">${f.k}</span></button>`).join(''));
   if(a==='txt'){openSheet(head('Опиши, что съел','Добавить в '+target)+`<input id="tx" placeholder="Например: тарелка плова и чай с сахаром"><button class="btn" id="txGo" style="margin-top:14px">Посчитать</button>`);$('#tx').focus();
-   $('#txGo').onclick=()=>{const v=$('#tx').value.trim();if(!v){$('#tx').focus();return}analyzing('');setTimeout(()=>result(guessText(v),''),1100)}}
+   $('#txGo').onclick=()=>{const v=$('#tx').value.trim();if(!v){$('#tx').focus();return}analyzing('');if(LIVE)ai({type:'text',text:v}).then(r=>result(r,'')).catch(er=>aiFail(er));else setTimeout(()=>result(guessText(v),''),1100)}}
   if(a==='train'){closeSheet();selT=wd(today);go('train')}}
  if(d.fav!==undefined)result({...FAV[+d.fav]},'');
  if(d.set){const[i,s]=d.set.split('|').map(Number),k=dk(selT)+'#'+i;DONE[k]=DONE[k]||[];DONE[k][s]=!DONE[k][s];render();haptic();if(DONE[k][s])startRest()}
