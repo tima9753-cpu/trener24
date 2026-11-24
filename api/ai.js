@@ -33,14 +33,17 @@ async function openai(messages, json, maxTokens) {
   return j.choices[0].message.content;
 }
 
-const FOOD_PROMPT = 'Ты нутрициолог. Определи блюдо и оцени порцию. Ответь строго JSON: ' +
-  '{"n":"название блюда по-русски","g":вес порции в граммах,"k":ккал,"p":белки г,"f":жиры г,"c":углеводы г}. ' +
-  'Все числа — целые. Если на фото нет еды, ответь {"error":"На фото не видно еды"}.';
+const FOOD_PROMPT = 'Ты нутрициолог. Определи блюдо и оцени порцию. Ответь строго JSON по образцу: ' +
+  '{"n":"Плов с говядиной","g":300,"k":560,"p":22,"f":21,"c":70}, где n — название по-русски, g — вес всей порции в граммах, ' +
+  'k — калории всей порции, p — белки, f — жиры, c — углеводы в граммах на всю порцию. Значения g,k,p,f,c — только целые числа без единиц измерения. ' +
+  'Если на фото нет еды, ответь {"error":"На фото не видно еды"}.';
 
 function cleanFood(o) {
   if (o.error) return { error: String(o.error).slice(0, 120) };
-  const n = x => Math.max(0, Math.round(Number(x) || 0));
-  return { n: String(o.n || 'Блюдо').slice(0, 80), g: n(o.g) || 250, k: n(o.k), p: n(o.p), f: n(o.f), c: n(o.c) };
+  const n = x => { const m = String(x == null ? '' : x).replace(',', '.').match(/\d+(\.\d+)?/); return m ? Math.round(parseFloat(m[0])) : 0; };
+  const v = (...ks) => { for (const k of ks) if (o[k] != null) return o[k]; return 0; };
+  return { n: String(o.n || o.name || 'Блюдо').slice(0, 80), g: n(v('g', 'weight', 'grams')) || 250, k: n(v('k', 'kcal', 'calories')),
+    p: n(v('p', 'protein', 'proteins')), f: n(v('f', 'fat', 'fats')), c: n(v('c', 'carbs', 'carbohydrates')) };
 }
 
 module.exports = async (req, res) => {
