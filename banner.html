@@ -22,8 +22,11 @@
     const d = f.contentDocument;
     const b = d.querySelector('[data-v="' + view + '"]'); if (b) b.click();
     await wait(300);
+    const sh = d.getElementById('sheet'); if (sh) { sh.classList.remove('on'); sh.style.display = 'none'; }
     if (prep) prep(d);
     await wait(700);
+    if (sh) sh.style.display = 'none';
+    const tm = d.getElementById('timer'); if (tm) tm.classList.remove('on');
     const defs = d.querySelector('svg defs');
     const grads = defs ? defs.innerHTML.replace(/<symbol[\s\S]*?<\/symbol>/g, '') : '';
     d.querySelectorAll('svg use').forEach(u => {
