@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8"><title>Тренер 24 — обложка</title>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@800&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>body{margin:0;background:#111;color:#fff;font:14px Manrope,sans-serif}iframe{position:absolute;left:-3000px;top:0;width:390px;height:844px;border:0}#out{width:640px;height:360px;display:block}</style>
+</head><body>
+<canvas id="out" width="640" height="360"></canvas><div id="st">Рисую…</div>
+<script>
+(async () => {
+  const st = t => document.getElementById('st').textContent = t;
+  try {
+    localStorage.setItem('t24v2_p', JSON.stringify({ sex: 'm', age: 29, h: 178, w: 82, goalW: 76, act: '1.375', goal: 'cut', place: 'gym', health: '' }));
+    localStorage.setItem('t24v2_view', JSON.stringify('food'));
+  } catch (e) {}
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  async function shot(view, prep) {
+    const f = document.createElement('iframe');
+    f.src = '/?shot=' + view + '&' + Date.now();
+    document.body.appendChild(f);
+    await new Promise(r => f.onload = r);
+    await wait(1500);
+    const d = f.contentDocument;
+    const b = d.querySelector('[data-v="' + view + '"]'); if (b) b.click();
+    await wait(300);
+    if (prep) prep(d);
+    await wait(700);
+    const defs = d.querySelector('svg defs');
+    const grads = defs ? defs.innerHTML.replace(/<symbol[\s\S]*?<\/symbol>/g, '') : '';
+    d.querySelectorAll('svg use').forEach(u => {
+      const sym = d.getElementById((u.getAttribute('href') || '').slice(1)); if (!sym) return;
+      const svg = u.closest('svg'); svg.setAttribute('viewBox', sym.getAttribute('viewBox'));
+      svg.innerHTML = '<defs>' + grads + '</defs>' + sym.innerHTML;
+    });
+    const c = await html2canvas(d.body, { width: 390, height: 844, windowWidth: 390, windowHeight: 844, scale: 2, backgroundColor: '#121115', useCORS: true });
+    f.remove();
+    return c;
+  }
+  const logoSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffa04a"/><stop offset=".5" stop-color="#ff5a2c"/><stop offset="1" stop-color="#e8304e"/></linearGradient><radialGradient id="glow" cx=".3" cy=".2" r=".8"><stop offset="0" stop-color="#fff" stop-opacity=".35"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/></radialGradient><linearGradient id="plate" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b2732"/><stop offset="1" stop-color="#121115"/></linearGradient></defs><rect width="640" height="640" fill="url(#bg)"/><rect width="640" height="640" fill="url(#glow)"/><rect x="96" y="304" width="448" height="32" rx="16" fill="#fff"/><rect x="86" y="214" width="56" height="212" rx="22" fill="url(#plate)"/><rect x="142" y="244" width="40" height="152" rx="18" fill="url(#plate)"/><rect x="498" y="214" width="56" height="212" rx="22" fill="url(#plate)"/><rect x="458" y="244" width="40" height="152" rx="18" fill="url(#plate)"/><rect x="196" y="238" width="248" height="164" rx="40" fill="#fff"/><path fill="#e8402e" d="M223.6 307.8Q224.4 297.2 230.7 289.5Q237.0 281.8 247.5 277.6Q258.0 273.5 271.1 273.5Q283.6 273.5 293.0 277.3Q302.4 281.0 307.6 287.7Q312.8 294.4 312.8 303.2Q312.8 310.2 309.0 316.1Q305.1 322.0 297.1 327.6Q289.1 333.2 276.2 339.0L253.7 349.4L253.1 342.5H315.2V364.0H225.8V345.1L263.9 324.2Q272.6 319.5 277.2 316.4Q281.8 313.3 283.6 310.6Q285.5 307.9 285.5 304.9Q285.5 301.7 283.8 299.3Q282.0 297.0 278.5 295.7Q275.0 294.4 270.1 294.4Q263.6 294.4 259.5 296.2Q255.4 298.0 253.4 301.1Q251.3 304.2 250.8 307.8ZM402.6 275.5V364.0H375.5V287.7H383.3L338.9 336.6L338.8 328.2H415.9V348.2H319.2V329.0L367.9 275.5Z"/></svg>`;
+  const rr = (x, y, w, h, r) => { const p = new Path2D(); p.roundRect(x, y, w, h, r); return p; };
+  try {
+    await Promise.all(['800 80px Unbounded', '700 32px Manrope', '800 25px Manrope'].map(f => document.fonts.load(f, 'Тренер 24')));
+    st('Снимаю экраны приложения…');
+    const A = await shot('food');
+    const B = await shot('train', d => { const t = d.querySelector('[data-t="0"]'); if (t) t.click(); setTimeout(() => { ['0|0', '0|1'].forEach(k => { const s = d.querySelector('[data-set="' + k + '"]'); if (s) s.click(); }); const ts = d.getElementById('tStop'); if (ts) ts.click(); }, 200); });
+    const logo = new Image(); logo.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(logoSvg); await logo.decode();
+    const W = 1280, H = 720, c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+    x.fillStyle = '#121115'; x.fillRect(0, 0, W, H);
+    let g = x.createRadialGradient(1090, 290, 0, 1090, 290, 640); g.addColorStop(0, 'rgba(255,107,44,.55)'); g.addColorStop(1, 'rgba(255,107,44,0)'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+    g = x.createRadialGradient(130, 790, 0, 130, 790, 520); g.addColorStop(0, 'rgba(255,61,90,.35)'); g.addColorStop(1, 'rgba(255,61,90,0)'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+    // logo
+    x.save(); x.shadowColor = 'rgba(255,80,50,.7)'; x.shadowBlur = 50; x.shadowOffsetY = 16; x.fillStyle = '#ff5a2c'; x.fill(rr(68, 80, 128, 128, 36)); x.restore();
+    x.save(); x.clip(rr(68, 80, 128, 128, 36)); x.drawImage(logo, 68, 80, 128, 128); x.restore();
+    // text
+    x.fillStyle = '#f6f3ef'; x.font = '800 80px Unbounded'; x.fillText('Тренер 24', 64, 318);
+    x.fillStyle = '#cfcad6'; x.font = '700 31px Manrope';
+    ['ИИ-тренер в Telegram: калории по', 'фото, тренировки и питание под', 'твою цель'].forEach((l, i) => x.fillText(l, 68, 384 + i * 43));
+    x.font = '800 25px Manrope';
+    const chips = [['📸 Калории по фото', 68, 532], ['🏋️ Программа', 0, 532], ['💬 Тренер 24/7', 68, 614]];
+    let cx = 68;
+    chips.forEach(([t, px, py], i) => {
+      const w = x.measureText(t).width + 52; const X = i === 1 ? cx : px;
+      x.fillStyle = 'rgba(255,255,255,.08)'; x.fill(rr(X, py, w, 62, 31)); x.strokeStyle = 'rgba(255,255,255,.12)'; x.lineWidth = 2; x.stroke(rr(X, py, w, 62, 31));
+      x.fillStyle = '#f6f3ef'; x.fillText(t, X + 26, py + 40); cx = X + w + 16;
+    });
+    // phones
+    function phone(img, left, top, deg) {
+      const pw = 336, ph = 728; x.save(); x.translate(left + pw / 2, top + ph / 2); x.rotate(deg * Math.PI / 180); x.translate(-pw / 2, -ph / 2);
+      x.save(); x.shadowColor = 'rgba(0,0,0,.7)'; x.shadowBlur = 80; x.shadowOffsetY = 50; x.fillStyle = '#0a090c'; x.fill(rr(0, 0, pw, ph, 60)); x.restore();
+      x.strokeStyle = '#3a3542'; x.lineWidth = 3; x.stroke(rr(0, 0, pw, ph, 60));
+      x.save(); x.clip(rr(12, 12, pw - 24, ph - 24, 48)); const iw = pw - 24, ih = img.height * iw / img.width; x.drawImage(img, 12, 12, iw, ih); x.restore();
+      x.restore();
+    }
+    phone(B, 940, 40, 6); phone(A, 700, 80, -8);
+    const out = document.getElementById('out').getContext('2d'); out.imageSmoothingQuality = 'high'; out.drawImage(c, 0, 0, 640, 360);
+    const blob = await new Promise(r => document.getElementById('out').toBlob(r, 'image/jpeg', .92));
+    st('Готово: ' + blob.size + ' байт');
+    if (window.parent !== window) window.parent.postMessage({ t24banner: blob }, '*');
+    window.__blob = blob;
+  } catch (e) { st('Ошибка: ' + e.message); if (window.parent !== window) window.parent.postMessage({ t24bannerError: String(e.message) }, '*'); }
+})();
+</script>
+</body></html>
