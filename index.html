@@ -157,6 +157,10 @@ input,select{font:inherit;font-size:16px;width:100%;min-height:50px;border-radiu
 .water{display:flex;gap:6px;margin-top:12px}.water button{flex:1;height:36px;border-radius:10px;background:var(--card2)}
 .water button.f{background:linear-gradient(180deg,#7aa4ff,#4d7cff)}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.demo{position:relative;aspect-ratio:4/3;border-radius:20px;overflow:hidden;background:#fff;margin-bottom:14px}.demo img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}.demo .f2{animation:fr 2.4s ease-in-out infinite}@keyframes fr{0%,35%{opacity:0}50%,85%{opacity:1}100%{opacity:0}}.demo .lbl{position:absolute;left:10px;bottom:10px;background:rgba(18,17,21,.75);color:#fff;font-size:12px;font-weight:800;padding:5px 11px;border-radius:99px}
+.exth{width:52px;height:52px;border-radius:14px;object-fit:cover;background:#fff;flex:none}
+.muscles{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}.muscles span{display:inline-block;font-size:12px;font-weight:800;padding:4px 10px;border-radius:99px;background:var(--card);color:var(--mute)}
+.muscles span::first-letter{text-transform:uppercase}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -236,14 +240,13 @@ input,select{font:inherit;font-size:16px;width:100%;min-height:50px;border-radiu
   <div class="sec">Мои данные</div>
   <div class="list" id="dataList"></div>
   <div class="sec">Другое</div>
-  <div class="list" style="overflow:visible;position:relative"><span class="badge">+7 дней за друга</span>
-   <button class="li" id="invite"><span class="ic">🎁</span><span class="sp">Пригласить друга</span><span class="v" id="invN">0</span></button>
+  <div class="list" style="overflow:visible;position:relative">
+   <button class="li" id="invite"><span class="ic">🎁</span><span class="sp">Пригласить друга</span><span class="v"></span></button>
    <button class="li" id="redo"><span class="ic">📝</span><span class="sp">Пройти анкету заново</span></button>
    <button class="li" id="support"><span class="ic">💬</span><span class="sp">Поддержка</span></button>
   </div>
   <div class="sec">Подписка</div>
   <button class="prem" id="premBtn"><i>★</i><span class="sp"><b>Оформи Premium</b><small>Безлимит фото еды, ИИ-тренер, план питания</small></span>›</button>
-  <p class="note">Прототип · цены и данные примерные</p>
  </section>
 </main>
 
@@ -264,8 +267,8 @@ if(tg){try{tg.ready();tg.expand();tg.setHeaderColor&&tg.setHeaderColor('#121115'
 const haptic=t=>{try{tg&&tg.HapticFeedback.impactOccurred(t||'light')}catch(e){}};
 const LIVE=!!(tg&&tg.initData)&&!location.hostname.endsWith('github.io');
 async function ai(p){const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...p,initData:tg.initData})});let j={};try{j=await r.json()}catch(e){}if(!r.ok||j.error)throw new Error(j.error||'Ошибка сервера');return j}
-const load=(k,d)=>{try{const v=localStorage.getItem('t24v2_'+k);return v?JSON.parse(v):d}catch(e){return d}};
-const save=(k,v)=>{try{localStorage.setItem('t24v2_'+k,JSON.stringify(v))}catch(e){}};
+const load=(k,d)=>{try{const v=localStorage.getItem('t24v3_'+k);return v?JSON.parse(v):d}catch(e){return d}};
+const save=(k,v)=>{try{localStorage.setItem('t24v3_'+k,JSON.stringify(v))}catch(e){}};
 const icon=(id,cls)=>`<svg${cls?` class="${cls}"`:''}><use href="#${id}"/></svg>`;
 const fmt=n=>Math.round(n).toLocaleString('ru-RU');
 const key=d=>d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
@@ -281,14 +284,8 @@ let P=load('p',null);
 const FIRST=!P;
 if(!P)P={sex:'m',age:29,h:178,w:84,goalW:78,act:'1.375',goal:'cut',place:'gym',health:''};
 let LOG=load('log',null),WH=load('wh',null),DONE=load('done',{}),INV=load('inv',0),PREM=load('prem',null);
-if(!LOG){LOG={};const s=[[1980,2150,2310,1890,2240,2060],[0]];
- const pool=[['Овсянка с бананом и мёдом',390,13,9,64,'Завтрак'],['Курица с гречкой',520,46,11,58,'Обед'],['Творог 5% с ягодами',230,26,9,12,'Перекус'],['Лосось с рисом и овощами',610,38,22,62,'Ужин'],['Омлет из 3 яиц',310,21,22,7,'Завтрак'],['Борщ со сметаной',340,14,16,32,'Обед'],['Греческий салат',260,8,20,12,'Ужин']];
- for(let i=1;i<=13;i++){const k=key(addDays(today,-i)),m={};let tot=0,j=i;MEALS.forEach(([n])=>m[n]=[]);
-  while(tot<1500+((i*137)%450)){const p=pool[j++%pool.length];m[p[5]].push({n:p[0],k:p[1],p:p[2],f:p[3],c:p[4]});tot+=p[1]}
-  LOG[k]={m,w:6+(i%4)}}
- const t={};MEALS.forEach(([n])=>t[n]=[]);t['Завтрак'].push({n:'Овсянка с бананом и мёдом',k:390,p:13,f:9,c:64});t['Обед'].push({n:'Курица с гречкой',k:520,p:46,f:11,c:58});
- LOG[key(today)]={m:t,w:3}}
-if(!WH){WH=[];for(let i=29;i>=0;i--)WH.push({d:key(addDays(today,-i)),w:+(84.6-i*0+(29-i)*-0.085+((i*7)%5-2)*0.12).toFixed(1)});P.w=WH[WH.length-1].w}
+if(!LOG)LOG={};
+if(!WH)WH=[{d:key(today),w:P.w}];
 let selF=key(today),selT=wd(today),range=7,view=FIRST?'food':load('view','food');
 const day=k=>{if(!LOG[k]){const m={};MEALS.forEach(([n])=>m[n]=[]);LOG[k]={m,w:0}}return LOG[k]};
 const sum=k=>Object.values(day(k).m).flat().reduce((a,x)=>({k:a.k+x.k,p:a.p+x.p,f:a.f+x.f,c:a.c+x.c}),{k:0,p:0,f:0,c:0});
@@ -304,13 +301,9 @@ const PLANS={
   {t:'Ноги + кардио',m:55,ex:[['Жим ногами',4,'12','100 кг'],['Ягодичный мост',4,'12','60 кг'],['Велотренажёр',1,'20 мин','']]},null,null]},
  home:{name:'Дом · всё тело · 3 раза в неделю',days:[
   {t:'Всё тело A',m:35,ex:[['Приседания',4,'15',''],['Отжимания',4,'макс',''],['Выпады назад',3,'12',''],['Планка',3,'40 сек','']]},null,
-  {t:'Всё тело B',m:30,ex:[['Берпи',4,'10',''],['Ягодичный мост',4,'20',''],['Отжимания узкие',3,'10',''],['Скалолаз',3,'30 сек','']]},null,
+  {t:'Всё тело B',m:30,ex:[['Выпрыгивания из приседа',4,'12',''],['Ягодичный мост',4,'20',''],['Отжимания узкие',3,'10',''],['Скалолаз',3,'30 сек','']]},null,
   {t:'Всё тело C',m:35,ex:[['Болгарские выпады',3,'10',''],['Супермен',3,'15',''],['Отжимания',4,'макс',''],['Скручивания',3,'20','']]},null,null]}};
-const TIPS={'Жим лёжа':'Лопатки сведены, ноги упираются в пол. Опускай гриф к низу груди за 2 секунды, локти под углом около 45° к корпусу. Не отбивай гриф от груди.',
- 'Приседания со штангой':'Стопы чуть шире плеч, колени идут по линии носков. Садись до параллели, спина ровная, вес на всей стопе. Вдох внизу не делай — держи корпус.',
- 'Румынская тяга':'Колени чуть согнуты, таз уводишь назад, гриф скользит по ногам. Почувствовал растяжение задней поверхности бедра — поднимайся.',
- 'Приседания':'Таз назад, как будто садишься на стул, грудь вперёд, пятки не отрываются от пола.','Отжимания':'Тело — одна прямая линия, локти не разводи широко, грудь почти касается пола.',
- 'Подтягивания':'Начинай движение с лопаток, тянись грудью к перекладине, без раскачки. Не получается — используй резинку.'};
+const TIPS={"Жим лёжа": ["Barbell_Bench_Press_-_Medium_Grip", "Грудь, трицепс, передняя дельта", "Лопатки сведены и прижаты к скамье, стопы упираются в пол. Опускай гриф к низу груди за 2 секунды, локти под углом около 45° к корпусу. Выжимай вверх, не отрывая таз и не отбивая гриф от груди."], "Тяга верхнего блока": ["Wide-Grip_Lat_Pulldown", "Широчайшие, бицепс", "Хват чуть шире плеч, грудь вперёд, лёгкий прогиб в пояснице. Тяни рукоять к верху груди, сводя лопатки, локти идут вниз. Не раскачивайся корпусом и медленно отпускай вверх."], "Жим гантелей сидя": ["Seated_Dumbbell_Press", "Плечи, трицепс", "Спина прижата к спинке скамьи, гантели на уровне ушей. Выжимай вверх, не соударяя гантели наверху. Опускай подконтрольно до уровня ушей, не прогибайся в пояснице."], "Тяга гантели в наклоне": ["One-Arm_Dumbbell_Row", "Широчайшие, ромбовидные, бицепс", "Колено и рука на скамье, спина ровная, параллельна полу. Тяни гантель к поясу, локоть идёт вдоль корпуса. Внизу полностью выпрямляй руку, не скручивай корпус."], "Планка": ["Plank", "Пресс, кор", "Локти под плечами, тело — одна прямая линия от головы до пяток. Напряги пресс и ягодицы, не проваливай поясницу и не задирай таз. Дыши ровно."], "Приседания со штангой": ["Barbell_Squat", "Квадрицепс, ягодицы", "Гриф на верху трапеций, стопы чуть шире плеч, носки слегка врозь. Садись до параллели бедра с полом, колени идут по линии носков. Спина ровная, вес на всей стопе, вставай мощно через пятки."], "Румынская тяга": ["Romanian_Deadlift", "Бицепс бедра, ягодицы, поясница", "Колени чуть согнуты и неподвижны, спина прямая. Уводи таз назад, гриф скользит по ногам вниз до середины голени. Почувствовал растяжение задней поверхности бедра — поднимайся, сжимая ягодицы."], "Выпады с гантелями": ["Dumbbell_Lunges", "Квадрицепс, ягодицы", "Шаг вперёд, опускайся, пока заднее колено почти не коснётся пола. Переднее колено не уходит за носок, корпус вертикально. Отталкивайся передней ногой и возвращайся."], "Подъём на носки": ["Standing_Calf_Raises", "Икры", "Встань носками на край платформы, пятки свисают. Поднимайся максимально высоко, задержись на секунду, медленно опускай пятки ниже уровня платформы."], "Подтягивания": ["Pullups", "Широчайшие, бицепс", "Хват чуть шире плеч. Начинай движение с лопаток, тянись грудью к перекладине, без раскачки. Опускайся полностью. Не получается — используй резиновую петлю или гравитрон."], "Тяга штанги в наклоне": ["Bent_Over_Barbell_Row", "Спина, задняя дельта", "Наклон корпуса около 45°, спина прямая, колени согнуты. Тяни гриф к низу живота, сводя лопатки. Опускай подконтрольно, не округляя спину."], "Сгибания на бицепс": ["Dumbbell_Bicep_Curl", "Бицепс", "Локти прижаты к корпусу и неподвижны. Сгибай руки, разворачивая ладони вверх, без рывков корпусом. Опускай медленно до почти прямых рук."], "Французский жим": ["EZ-Bar_Skullcrusher", "Трицепс", "Лёжа на скамье, руки с грифом вертикально. Сгибай только в локтях, опуская гриф ко лбу. Локти смотрят вверх и не разводятся в стороны."], "Жим ногами": ["Leg_Press", "Квадрицепс, ягодицы", "Стопы на платформе на ширине плеч, поясница прижата к спинке. Опускай платформу до угла в коленях около 90°. Выжимай, не выпрямляя колени до щелчка."], "Ягодичный мост": ["Barbell_Glute_Bridge", "Ягодицы", "Лопатки на скамье или полу, стопы на ширине плеч. Поднимай таз до прямой линии от плеч до колен, сжимая ягодицы наверху на 1–2 секунды. Не прогибай поясницу."], "Велотренажёр": ["Bicycling_Stationary", "Кардио, ноги", "Сиденье на уровне таза. Держи ровный темп, при котором можешь говорить, но с одышкой. 20 минут в умеренном темпе после силовой."], "Приседания": ["Bodyweight_Squat", "Квадрицепс, ягодицы", "Стопы на ширине плеч. Уводи таз назад, как будто садишься на стул, грудь вперёд, руки перед собой. Пятки не отрываются от пола, колени идут по линии носков."], "Отжимания": ["Pushups", "Грудь, трицепс", "Руки чуть шире плеч, тело — одна прямая линия. Опускайся, пока грудь почти не коснётся пола, локти под углом около 45°. Тяжело — делай с колен."], "Выпады назад": ["Bodyweight_Walking_Lunge", "Квадрицепс, ягодицы", "Шагни назад и опускайся, пока колени не согнутся под 90°. Корпус вертикально, вес на передней ноге. Возвращайся, отталкиваясь передней пяткой."], "Выпрыгивания из приседа": ["Freehand_Jump_Squat", "Ноги, ягодицы, кардио", "Присядь до параллели и мощно выпрыгни вверх. Приземляйся мягко на носки с перекатом на всю стопу и сразу уходи в следующий присед."], "Отжимания узкие": ["Push-Ups_-_Close_Triceps_Position", "Трицепс, грудь", "Ладони под грудью, близко друг к другу. Локти при опускании идут вдоль корпуса. Тело прямое, не проваливай поясницу."], "Скалолаз": ["Mountain_Climbers", "Пресс, кардио", "Упор лёжа, руки под плечами. Поочерёдно подтягивай колени к груди в быстром темпе. Таз держи на одной линии с корпусом."], "Болгарские выпады": ["Split_Squat_with_Dumbbells", "Квадрицепс, ягодицы", "Задняя нога на скамье, передняя — на шаг впереди. Опускайся вертикально вниз до угла 90° в переднем колене. Вес на передней ноге."], "Супермен": ["Superman", "Поясница, ягодицы", "Лёжа на животе, руки вытянуты вперёд. Одновременно поднимай руки, грудь и ноги, задержись на 2 секунды, медленно опусти."], "Скручивания": ["Crunches", "Пресс", "Лёжа на спине, колени согнуты. Отрывай лопатки от пола за счёт пресса, поясница прижата. Не тяни голову руками."]};
 const plan=()=>PLANS[P.place];
 const dk=i=>{const k=key(addDays(today,i-wd(today)));return k};
 const burned=k=>{const d=plan().days[wd(pk(k))];if(!d)return 0;return d.ex.reduce((a,e,i)=>a+((DONE[k+'#'+i]||[]).filter(Boolean).length),0)*35};
@@ -342,8 +335,8 @@ function render(){
   if(!d){$('#workout').innerHTML=`<div class="wcard" style="background:linear-gradient(135deg,#2b3550,#1d2438)"><span class="pill">${plan().name}</span><h2>День отдыха</h2><p>Мышцы растут, пока ты восстанавливаешься. Прогулка 30–40 минут, сон 7–8 часов, белок по норме.</p>${icon('i-heart')}</div>`;return}
   const tot=d.ex.reduce((a,e)=>a+e[1],0),dn=d.ex.reduce((a,e,i)=>a+(DONE[k+'#'+i]||[]).filter(Boolean).length,0);
   $('#workout').innerHTML=`<div class="wcard"><span class="pill">${plan().name}</span><h2>${d.t}</h2><p>${d.ex.length} упражнений · ~${d.m} мин · ~${tot*35} ккал</p><div class="prog"><i style="width:${dn/tot*100}%"></i></div>${dn?`<span style="font-weight:800">${dn} из ${tot} подходов</span>`:`<button id="startW">Начать тренировку</button>`}${icon('i-dumb')}</div>
-  ${d.ex.map((e,i)=>{const st=DONE[k+'#'+i]||[];return`<div class="ex"><div class="row"><h3 class="sp">${e[0]}</h3>${e[3]?`<span class="tag">${e[3]}</span>`:''}</div><small style="color:var(--mute);font-weight:700">${e[1]} × ${e[2]}</small>
-   <div class="sets">${Array.from({length:e[1]},(_,s)=>`<button class="set" aria-pressed="${!!st[s]}" data-set="${i}|${s}">${st[s]?'✓ ':''}${s+1}</button>`).join('')}</div><button class="link" data-tip="${esc(e[0])}">Как делать правильно?</button></div>`}).join('')}
+  ${d.ex.map((e,i)=>{const st=DONE[k+'#'+i]||[];const tp=TIPS[e[0]];return`<div class="ex"><div class="row">${tp?`<img class="exth" src="/ex/${tp[0]}/0.jpg" alt="" loading="lazy" data-tip="${esc(e[0])}">`:''}<h3 class="sp">${e[0]}</h3>${e[3]?`<span class="tag">${e[3]}</span>`:''}</div><small style="color:var(--mute);font-weight:700">${e[1]} × ${e[2]}</small>
+   <div class="sets">${Array.from({length:e[1]},(_,s)=>`<button class="set" aria-pressed="${!!st[s]}" data-set="${i}|${s}">${st[s]?'✓ ':''}${s+1}</button>`).join('')}</div><button class="link" data-tip="${esc(e[0])}">▶ Техника выполнения</button></div>`}).join('')}
   <button class="btn" id="finish" style="margin-top:6px">Завершить тренировку</button>`}
  if(view==='stats'){const ks=Array.from({length:range},(_,i)=>key(addDays(today,i-range+1)));
   const eaten=ks.map(k=>sum(k).k),dishes=ks.reduce((a,k)=>a+Object.values(day(k).m).flat().length,0);
@@ -361,11 +354,11 @@ function render(){
   const G={cut:'Похудеть',keep:'Держать форму',bulk:'Набрать массу'},A={'1.2':'Сидячий образ','1.375':'1–3 тренировки','1.55':'3–5 тренировок','1.725':'Каждый день'};
   $('#goalList').innerHTML=[['🎯','Цель',G[P.goal],'goal'],['⚖️','Целевой вес',P.goalW+' кг','goalW'],['🔥','Дневная норма',fmt(N.k)+' ккал','norm'],['🏋️','Где тренируюсь',P.place==='gym'?'В зале':'Дома','place']].map(r=>`<button class="li" data-edit="${r[3]}"><span class="ic">${r[0]}</span><span class="sp">${r[1]}</span><span class="v">${r[2]}</span></button>`).join('');
   $('#dataList').innerHTML=[['Рост',P.h+' см','h'],['Возраст',P.age+' лет','age'],['Пол',P.sex==='m'?'Мужской':'Женский','sex'],['Активность',A[P.act],'act']].map(r=>`<button class="li" data-edit="${r[2]}"><span class="sp">${r[0]}</span><span class="v">${r[1]}</span></button>`).join('');
-  $('#invN').textContent=INV;$('#premBtn').querySelector('b').textContent=PREM?'Premium активен':'Оформи Premium'}
+  $('#premBtn').querySelector('b').textContent=PREM?'Premium активен':'Оформи Premium'}
  save('p',P);save('log',LOG);save('wh',WH);save('done',DONE);
 }
 let wRO=null;
-function drawW(wh){const s=$('#wSvg'),f=()=>{const Wd=s.clientWidth,H=s.clientHeight;if(!Wd)return;const pad=18,ws=wh.map(x=>x.w),g=P.goalW;
+function drawW(wh){if(wh.length<2)wh=[wh[0],wh[0]];const s=$('#wSvg'),f=()=>{const Wd=s.clientWidth,H=s.clientHeight;if(!Wd)return;const pad=18,ws=wh.map(x=>x.w),g=P.goalW;
  const lo=Math.min(...ws,g)-0.6,hi=Math.max(...ws,g)+0.6,X=i=>pad+i*(Wd-pad*2)/(wh.length-1),Y=v=>12+(hi-v)/(hi-lo)*(H-40);
  const pts=wh.map((x,i)=>X(i)+','+Y(x.w)).join(' '),last=wh.length-1;
  s.innerHTML=`<defs><linearGradient id="wf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff6b2c" stop-opacity=".45"/><stop offset="1" stop-color="#ff6b2c" stop-opacity="0"/></linearGradient></defs>
@@ -388,13 +381,13 @@ function addSheet(meal){target=meal||pickMeal();
  openSheet(head(meal?meal:'Что добавим?',meal?'Добавить в':'Быстрое действие')+`<div class="tiles">
   <button class="tile" data-act="cam">${icon('i-cam')}<b>Камера</b><small class="hot">Сфотографировать</small></button>
   <button class="tile" data-act="gal">${icon('i-gal')}<b>Из галереи</b><small>Выбрать фото</small></button>
-  <button class="tile" data-act="fav">${icon('i-heart')}<b>Избранное</b><small>Любимые блюда</small></button>
+  <button class="tile" data-act="fav">${icon('i-heart')}<b>Недавние</b><small>Добавить повторно</small></button>
   <button class="tile" data-act="txt">${icon('i-pen')}<b>Описать</b><small class="hot">Добавить словами</small></button>
   ${meal?'':`<button class="tile wide" data-act="train">${icon('i-dumb')}<b>Начать тренировку</b><small>${(plan().days[wd(today)]||{t:'Сегодня отдых'}).t}</small></button>`}</div>`)}
 
 /* ---------- AI demo ---------- */
 const DEMO=[{n:'Паста с курицей в сливочном соусе',g:320,k:540,p:34,f:20,c:56},{n:'Цезарь с курицей',g:250,k:410,p:28,f:26,c:16},{n:'Плов с говядиной',g:300,k:560,p:22,f:21,c:70},{n:'Омлет с овощами',g:220,k:310,p:21,f:22,c:7},{n:'Шаурма с курицей',g:350,k:620,p:32,f:28,c:58}];
-const FAV=[{n:'Овсянка с бананом и мёдом',g:300,k:390,p:13,f:9,c:64},{n:'Курица с гречкой',g:350,k:520,p:46,f:11,c:58},{n:'Творог 5% с ягодами',g:200,k:230,p:26,f:9,c:12}];
+const favs=()=>{const m=new Map();Object.keys(LOG).sort((a,b)=>pk(b)-pk(a)).forEach(k=>Object.values(LOG[k].m).flat().forEach(x=>{if(!m.has(x.n))m.set(x.n,x)}));return[...m.values()].slice(0,15)};
 function guessText(t){const l=t.toLowerCase(),base=DEMO.find(d=>l.includes(d.n.split(' ')[0].toLowerCase()));
  return base?{...base}:{n:t.charAt(0).toUpperCase()+t.slice(1),g:250,k:380,p:18,f:14,c:42}}
 function analyzing(img){openSheet(head('Распознаю блюдо…','ИИ смотрит на тарелку')+(img?`<img class="photo" src="${img}" alt="Фото еды">`:'')+'<div class="scan"></div>')}
@@ -406,8 +399,8 @@ function result(r,img){const base={...r};
  <button class="btn" id="addR" style="margin-top:16px">Добавить в дневник</button>${LIVE?'<p class="note">Оценка ИИ — поправь вес порции, если нужно</p>':'<p class="note">Демо: в рабочей версии здесь будет ответ ИИ по фото</p>'}`);
  const upd=()=>{const q=(+$('#portion').value||0)/base.g;['k','p','f','c'].forEach(x=>r[x]=Math.round(base[x]*q));$('#rk').textContent=fmt(r.k);
   $('#rm').innerHTML=[['Б',r.p,'var(--pro)'],['Ж',r.f,'var(--fat)'],['У',r.c,'var(--carb)']].map(([l,v,c])=>`<div class="mac"><span class="lt" style="background:${c}">${l}</span><b>${v} г</b></div>`).join('')};
- upd();$('#portion').oninput=upd;$('#addR').onclick=()=>{day(selF).m[$('#rmeal').value].push({n:r.n,k:r.k,p:r.p,f:r.f,c:r.c,img:img||''});closeSheet();if(view!=='food')go('food');else render();haptic('medium');toast('Добавлено: '+r.k+' ккал')}}
-function onFile(e){const f=e.target.files[0];e.target.value='';if(!f)return;const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),s=Math.min(1,320/Math.max(im.width,im.height));c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);let u='';try{u=c.toDataURL('image/jpeg',.7)}catch(x){u=''}
+ upd();$('#portion').oninput=upd;$('#addR').onclick=()=>{day(selF).m[$('#rmeal').value].push({n:r.n,k:r.k,p:r.p,f:r.f,c:r.c,g:+$('#portion').value||r.g,img:img||''});closeSheet();if(view!=='food')go('food');else render();haptic('medium');toast('Добавлено: '+r.k+' ккал')}}
+function onFile(e){const f=e.target.files[0];e.target.value='';if(!f)return;const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),s=Math.min(1,160/Math.max(im.width,im.height));c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);let u='';try{u=c.toDataURL('image/jpeg',.7)}catch(x){u=''}
  analyzing(u);if(LIVE){const c2=document.createElement('canvas'),s2=Math.min(1,768/Math.max(im.width,im.height));c2.width=im.width*s2;c2.height=im.height*s2;c2.getContext('2d').drawImage(im,0,0,c2.width,c2.height);ai({type:'photo',image:c2.toDataURL('image/jpeg',.8)}).then(r=>result(r,u)).catch(er=>aiFail(er))}else setTimeout(()=>result({...DEMO[Math.floor(Math.random()*DEMO.length)]},u),1700)};im.src=rd.result};rd.readAsDataURL(f)}
 $('#file').onchange=onFile;$('#cam').onchange=onFile;
 
@@ -448,15 +441,15 @@ function onboard(s){const st=OB[s];const dots=`<div class="dots">${OB.map((_,i)=
   <label for="oG">Желаемый вес, кг</label><input id="oG" type="number" inputmode="decimal" value="${P.goalW}"><label for="oX">Ограничения по здоровью</label><input id="oX" placeholder="Например: болит колено" value="${esc(P.health)}">`)+
  `<button class="btn" id="obNext" style="margin-top:16px">${s<2?'Дальше':'Рассчитать мой план'}</button>`);
  $('#sheetBody').querySelectorAll('[data-ob]').forEach(b=>b.onclick=()=>{P[st.k]=b.dataset.ob;$('#sheetBody').querySelectorAll('[data-ob]').forEach(x=>x.setAttribute('aria-pressed',x===b));haptic()});
- $('#obNext').onclick=()=>{if(st.k==='data'){P.sex=$('#oS').value;P.age=+$('#oA').value||P.age;P.h=+$('#oH').value||P.h;P.w=+String($('#oW').value).replace(',','.')||P.w;P.goalW=+String($('#oG').value).replace(',','.')||P.goalW;P.health=$('#oX').value}
+ $('#obNext').onclick=()=>{if(st.k==='data'){P.sex=$('#oS').value;P.age=+$('#oA').value||P.age;P.h=+$('#oH').value||P.h;P.w=+String($('#oW').value).replace(',','.')||P.w;P.goalW=+String($('#oG').value).replace(',','.')||P.goalW;P.health=$('#oX').value;const tk=key(today);WH=WH.filter(x=>x.d!==tk);WH.push({d:tk,w:P.w})}
   if(s<2)onboard(s+1);else{const N=norm();openSheet(head('Твой план готов','Персонально под тебя')+`<div class="freebox">${icon('i-fire')}<h2>${fmt(N.k)} ккал</h2><p>в день · белки ${N.p} г · жиры ${N.f} г · углеводы ${N.c} г</p></div>
    <div class="card"><b>${plan().name}</b><p style="margin:4px 0 0;color:var(--mute);font-weight:600">Первая тренировка — ${(plan().days.find(Boolean)).t.toLowerCase()}</p></div><button class="btn" data-close>Поехали!</button>`);save('p',P);render()}}}
 function premium(){let pick='y';const draw=()=>{openSheet(head('Premium','Моя подписка')+`<div class="freebox">${icon('i-star')}<h2>${PREM?'Активна':'Бесплатно'}</h2><p>${PREM?'Все функции открыты':'1 фото еды в день и базовая программа'}</p></div>
  <ul class="feat"><li>Безлимитный подсчёт калорий по фото</li><li>ИИ-тренер в чате 24/7</li><li>Персональная программа и прогрессия весов</li><li>План питания с меню на неделю</li><li>Разбор техники по видео</li></ul>
  <button class="plan" data-p="m" aria-pressed="${pick==='m'}"><span class="sp">Месяц</span><span class="price">449 ₽</span></button>
  <button class="plan" data-p="y" aria-pressed="${pick==='y'}"><span class="sp">Год <span class="sale">−33%</span><br><small style="color:var(--mute);font-weight:700">299 ₽ в месяц</small></span><span class="price">3 590 ₽</span></button>
- <button class="btn" id="buy" style="margin-top:8px">Оформить Premium</button><p class="note">Прототип: оплата через ЮKassa или Telegram Stars подключается на сервере</p>`);
- $('#sheetBody').querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{pick=b.dataset.p;draw()});$('#buy').onclick=()=>toast('Оплата появится в рабочей версии')};draw()}
+ <button class="btn" id="buy" style="margin-top:8px">Оформить Premium</button><p class="note">Оплата через Telegram появится в ближайшее время</p>`);
+ $('#sheetBody').querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{pick=b.dataset.p;draw()});$('#buy').onclick=()=>toast('Оплата скоро появится — сообщим в боте')};draw()}
 
 /* ---------- global clicks ---------- */
 document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)return;const d=t.dataset;
@@ -468,13 +461,13 @@ document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)r
  if(d.q)ask(d.q);
  if(d.del){const[m,i]=d.del.split('|');day(selF).m[m].splice(+i,1);render()}
  if(d.act){const a=d.act;if(a==='cam')$('#cam').click();if(a==='gal')$('#file').click();
-  if(a==='fav')openSheet(head('Избранное','Добавить в '+target)+FAV.map((f,i)=>`<button class="dish" data-fav="${i}" style="width:100%;text-align:left"><span class="ph">⭐</span><div class="sp"><div class="nm">${f.n}</div><small>${f.g} г · Б ${f.p} · Ж ${f.f} · У ${f.c}</small></div><span class="num">${f.k}</span></button>`).join(''));
+  if(a==='fav'){const F=favs();openSheet(head('Недавние блюда','Добавить в '+target)+(F.length?F.map((f,i)=>`<button class="dish" data-fav="${i}" style="width:100%;text-align:left"><span class="ph">${f.img?`<img src="${f.img}" alt="">`:'⭐'}</span><div class="sp"><div class="nm">${esc(f.n)}</div><small>${f.g?f.g+' г · ':''}Б ${f.p} · Ж ${f.f} · У ${f.c}</small></div><span class="num">${f.k}</span></button>`).join(''):'<p style="font-weight:600;color:var(--mute)">Здесь появятся блюда, которые ты уже добавлял — чтобы вносить их в один тап.</p>'))}
   if(a==='txt'){openSheet(head('Опиши, что съел','Добавить в '+target)+`<input id="tx" placeholder="Например: тарелка плова и чай с сахаром"><button class="btn" id="txGo" style="margin-top:14px">Посчитать</button>`);$('#tx').focus();
    $('#txGo').onclick=()=>{const v=$('#tx').value.trim();if(!v){$('#tx').focus();return}analyzing('');if(LIVE)ai({type:'text',text:v}).then(r=>result(r,'')).catch(er=>aiFail(er));else setTimeout(()=>result(guessText(v),''),1100)}}
   if(a==='train'){closeSheet();selT=wd(today);go('train')}}
- if(d.fav!==undefined)result({...FAV[+d.fav]},'');
+ if(d.fav!==undefined){const f=favs()[+d.fav];if(f)result({n:f.n,g:f.g||100,k:f.k,p:f.p,f:f.f,c:f.c},f.img||'')}
  if(d.set){const[i,s]=d.set.split('|').map(Number),k=dk(selT)+'#'+i;DONE[k]=DONE[k]||[];DONE[k][s]=!DONE[k][s];render();haptic();if(DONE[k][s])startRest()}
- if(d.tip!==undefined)openSheet(head(d.tip,'Техника')+`<p style="font-weight:600;font-size:16px">${esc(TIPS[d.tip]||'Двигайся подконтрольно, без рывков: вниз 2 секунды, вверх 1. Чувствуешь боль в суставе — остановись и спроси ИИ-тренера.')}</p><p class="note" style="text-align:left">В Premium здесь будет видео техники</p><button class="btn" data-close style="margin-top:12px">Понятно</button>`);
+ if(d.tip!==undefined)exSheet(d.tip);
  if(t.id==='startW'){const f=document.querySelector('[data-set="0|0"]');if(f)f.scrollIntoView({behavior:'smooth',block:'center'})}
  if(t.id==='finish'){const k=dk(selT),b=plan().days[selT]?plan().days[selT].ex.reduce((a,e,i)=>a+(DONE[k+'#'+i]||[]).filter(Boolean).length,0)*35:0;$('#tStop').click();
   openSheet(`<div class="freebox" style="margin-top:4px">${icon('i-fire')}<h2>Отличная работа!</h2><p>Сожжено около ${b} ккал — добавлено к дневной норме</p></div><button class="btn" data-close>Готово</button>`);haptic('heavy')}
@@ -482,9 +475,11 @@ document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)r
  if(t.id==='updW')edit('w');
  if(t.id==='redo')onboard(0);
  if(t.id==='premBtn')premium();
- if(t.id==='invite'){INV++;save('inv',INV);render();toast('Ссылка-приглашение скопирована')}
+ if(t.id==='invite'){const u=(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user)||{};const link='https://t.me/trener24sportlivebot?start=ref'+(u.id||'');const sh='https://t.me/share/url?url='+encodeURIComponent(link)+'&text='+encodeURIComponent('Считаю калории по фото и тренируюсь с ИИ-тренером — попробуй 💪');try{if(tg&&tg.openTelegramLink)tg.openTelegramLink(sh);else window.open(sh)}catch(e){toast('Не получилось открыть')}}
  if(t.id==='support')coach();
 });
+document.addEventListener('click',e=>{const im=e.target.closest('img.exth');if(im)exSheet(im.dataset.tip)});
+function exSheet(n){const tp=TIPS[n];openSheet(head(esc(n),'Техника выполнения')+(tp?`<div class="demo"><img src="/ex/${tp[0]}/0.jpg" alt=""><img class="f2" src="/ex/${tp[0]}/1.jpg" alt=""><span class="lbl">▶ Анимация техники</span></div><div class="muscles">${tp[1].split(', ').map(x=>`<span>${esc(x)}</span>`).join('')}</div>`:'')+`<p style="font-weight:600;font-size:16px;margin-top:0">${esc(tp?tp[2]:'Двигайся подконтрольно, без рывков: вниз 2 секунды, вверх 1. Почувствовал боль в суставе — остановись и спроси ИИ-тренера.')}</p><button class="btn" data-close style="margin-top:6px">Понятно</button>`)}
 $('#segStat').onclick=e=>{const b=e.target.closest('button');if(!b)return;range=+b.dataset.r;$('#segStat').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));render()};
 
 go(view);
