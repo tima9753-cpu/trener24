@@ -85,6 +85,15 @@ module.exports = async (req, res) => {
   const b = req.body || {};
   const user = checkInitData(b.initData, process.env.BOT_TOKEN);
   if (!user) return res.status(401).json({ error: 'Открой приложение через Telegram-бота' });
+  if (b.type === 'sub') { // обязательная подписка на канал новостей; при ошибке не блокируем
+    try {
+      const ch = process.env.NEWS_ID || '-1005811785963';
+      const r = await (await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/getChatMember?chat_id=${ch}&user_id=${user.id}`)).json();
+      if (!r.ok) return res.json({ sub: null });
+      const st = r.result.status;
+      return res.json({ sub: ['creator', 'administrator', 'member'].includes(st) || (st === 'restricted' && !!r.result.is_member) });
+    } catch (e) { return res.json({ sub: null }); }
+  }
   try {
     if (b.type === 'photo') {
       if (typeof b.image !== 'string' || !b.image.startsWith('data:image/') || b.image.length > 3e6)
