@@ -180,6 +180,11 @@ input,select{font:inherit;font-size:16px;width:100%;min-height:50px;border-radiu
 .reg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.reg div{background:var(--card2);border-radius:14px;padding:10px}.reg small{display:block;color:var(--mute);font-weight:700;font-size:11.5px}.reg b{font-size:14px}
 .score{font-family:Unbounded,Manrope,system-ui,sans-serif;font-weight:800;font-size:34px;line-height:1.1}
 .msg .btn{display:block;width:100%}
+.anim{background:#1d1b22;border-radius:22px;padding:8px 8px 10px;margin-bottom:10px;border:1px solid var(--line)}.anim svg{width:100%;height:auto;display:block}
+.anst{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin:4px 6px 8px}.anst i{height:4px;border-radius:2px;background:var(--card2)}.anst i.on{background:var(--grad)}
+.ancap{display:flex;gap:8px;align-items:center;padding:0 6px;min-height:22px}.ancap span{font-size:11px;font-weight:800;text-transform:uppercase;color:var(--acc);letter-spacing:.04em;white-space:nowrap}.ancap b{font-size:14.5px;line-height:1.3}
+.seg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px}.seg3 button{min-height:38px;border-radius:12px;background:var(--card);font-weight:800;font-size:13px;color:var(--mute)}.seg3 button[aria-pressed=true]{background:var(--card2);color:var(--ink);box-shadow:inset 0 0 0 1px rgba(255,107,44,.5)}
+.steps{margin:8px 0 0;padding-left:20px;font-weight:600;font-size:14.5px;line-height:1.45}.steps li{margin-bottom:4px}
 </style>
 </head>
 <body>
@@ -581,6 +586,190 @@ function planSheet(mode){const N=norm(),eta=goalEta(),p=pace(),cw=cycleWeek(),cm
  const ps=p?`<div class="${p.ok||p.ahead?'why':'warn'}" style="margin-bottom:10px">${p.ok?`Идёшь по плану: ожидалось ${kg(p.exp)} кг, сейчас ${kg(p.act)} кг.`:p.ahead?`Идёшь быстрее плана: ожидалось ${kg(p.exp)} кг, сейчас ${kg(p.act)} кг.`:`Отстаёшь от плана на ${kg(Math.abs(p.diff))} кг. Проверь калории: записывай всё, включая напитки и соусы.`}</div>`:'';
  openSheet(head(mode==='month'?'План на месяц':'План на год','Тренировки, питание и результат')+seg+ps+b+`<button class="btn" data-close style="margin-top:12px">Понятно</button>`)}
 
+/* ---------- technique animation engine ---------- */
+const AN=(()=>{
+const L={sh:38,th:40,to:50,ua:29,fa:27,ft:13},R=Math.PI/180,dir=a=>[Math.cos(a*R),Math.sin(a*R)];
+const add=(p,a,l)=>{const d=dir(a);return[p[0]+d[0]*l,p[1]+d[1]*l]},sub=(p,a,l)=>add(p,a,-l);
+const ang=(p,q)=>Math.atan2(q[1]-p[1],q[0]-p[0])/R;
+function ik(o,t,l1,l2,s){const dx=t[0]-o[0],dy=t[1]-o[1];let d=Math.hypot(dx,dy);d=Math.min(Math.max(d,Math.abs(l1-l2)+.01),l1+l2-.01);
+ const a=Math.atan2(dy,dx)/R,b=Math.acos((l1*l1+d*d-l2*l2)/(2*l1*d))/R,j=add(o,a+s*b,l1);return[a+s*b,ang(j,t)]}
+// pose -> joint positions
+function fk(p){const J={};let H;
+ if(p.r==='A'){J.A=[p.x,p.y];J.K=sub(J.A,p.sh,L.sh);H=sub(J.K,p.th,L.th)}
+ else if(p.r==='W'){J.W=[p.x,p.y];J.E=sub(J.W,p.fa,L.fa);const S=sub(J.E,p.ua,L.ua);H=sub(S,p.to,L.to*.88)}
+ else H=[p.x,p.y];
+ J.H=H;J.N=add(H,p.to,L.to);J.S=add(H,p.to,L.to*.88);J.Hd=add(J.N,p.hd,11);
+ const leg=(th,sh,ft,k,a,t,pin,s)=>{if(pin){[th,sh]=ik(H,pin,L.th,L.sh,s)}J[k]=add(H,th,L.th);J[a]=add(J[k],sh,L.sh);J[t]=add(J[a],ft,L.ft);J['_'+k]=th;J['_'+a]=sh};
+ J._K=p.th;J._A=p.sh;J._E=p.ua;J._W=p.fa;
+ const arm=(ua,fa,e,w,pin,s)=>{if(pin){[ua,fa]=ik(J.S,pin,L.ua,L.fa,s)}J[e]=add(J.S,ua,L.ua);J[w]=add(J[e],fa,L.fa);J['_'+e]=ua;J['_'+w]=fa};
+ if(p.r!=='A')leg(p.th,p.sh,p.ft,'K','A','T',p.pA,p.sA);else J.T=add(J.A,p.ft,L.ft);
+ leg(p.th2,p.sh2,p.ft2,'K2','A2','T2',p.pA2,p.sA2);
+ if(p.r!=='W')arm(p.ua,p.fa,'E','W',p.pW,p.sW);
+ arm(p.ua2,p.fa2,'E2','W2',p.pW2,p.sW2);return J}
+const D={r:'A',x:150,y:195,to:-90,th:90,sh:90,ft:0,ua:90,fa:90};
+function norm(p){p={...D,...p};if(p.hd==null)p.hd=p.to;
+ if(p.ar!=null)p.ua=p.to+180+p.ar;if(p.fr!=null)p.fa=p.ua+p.fr;
+ if(p.ar2!=null)p.ua2=p.to+180+p.ar2;if(p.fr2!=null)p.fa2=p.ua2+p.fr2;
+ ['th','sh','ft','ua','fa'].forEach(k=>{if(p[k+'2']==null)p[k+'2']=p[k]});
+ ['pA','pW'].forEach(k=>{if(p[k+'2']===undefined)p[k+'2']=p[k]});
+ ['sA','sW'].forEach(k=>{if(p[k]==null)p[k]=k==='sA'?-1:1;if(p[k+'2']==null)p[k+'2']=p[k]});return p}
+const lerpA=(a,b,t)=>{let d=((b-a)%360+540)%360-180;return a+d*t},lerp=(a,b,t)=>a+(b-a)*t;
+function mix(a,b,t){const o={...a};for(const k in b){const va=a[k],vb=b[k];
+ if(typeof va==='number'&&typeof vb==='number')o[k]=/^(x|y)$/.test(k)?lerp(va,vb,t):lerpA(va,vb,t);
+ else if(Array.isArray(va)&&Array.isArray(vb))o[k]=[lerp(va[0],vb[0],t),lerp(va[1],vb[1],t)]}return o}
+const P=(x,y)=>`${x.toFixed(1)},${y.toFixed(1)}`;
+const seg=(a,b,w,c)=>`<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke="${c}" stroke-width="${w}" stroke-linecap="round"/>`;
+const NEAR='#ece8f2',FAR='#8a8597',HL='url(#anH)',HL2='#b35226';
+function props(J,pr,front){let b='',f='';const pl=(p,r)=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${r}" fill="#2a2731" stroke="#5b5666" stroke-width="3"/>`;
+ const db=p=>`<g transform="translate(${P(p[0],p[1])})"><rect x="-9" y="-2.5" width="18" height="5" rx="2" fill="#77727f"/><rect x="-11" y="-7" width="6" height="14" rx="2" fill="#3a3642" stroke="#5b5666"/><rect x="5" y="-7" width="6" height="14" rx="2" fill="#3a3642" stroke="#5b5666"/></g>`;
+ const band=(a,w)=>`<path d="M${P(a[0],a[1])} L${P(w[0],w[1])}" stroke="#3fe0a6" stroke-width="3" stroke-dasharray="1 0" fill="none" opacity=".9"/>`;
+ (pr||[]).forEach(x=>{const [k,...v]=x.split(':');
+  if(k==='bench')b+=`<rect x="${v[0]}" y="${v[1]}" width="${v[2]}" height="7" rx="3" fill="#4a4554"/><rect x="${+v[0]+8}" y="${+v[1]+7}" width="5" height="${200-v[1]-7}" fill="#3a3642"/><rect x="${+v[0]+v[2]-13}" y="${+v[1]+7}" width="5" height="${200-v[1]-7}" fill="#3a3642"/>`;
+  if(k==='box')b+=`<rect x="${v[0]}" y="${v[1]}" width="${v[2]}" height="${200-v[1]}" rx="4" fill="#3a3642" stroke="#4f4a59"/>`;
+  if(k==='seat')b+=`<rect x="${v[0]}" y="${v[1]}" width="${v[2]}" height="7" rx="3" fill="#4a4554"/><rect x="${+v[0]+v[2]/2-3}" y="${+v[1]+7}" width="6" height="${200-v[1]-7}" fill="#3a3642"/>`;
+  if(k==='back'){const a=J.H,e=add(J.H,+v[0],+v[1]);b+=seg(a,e,8,'#4a4554')}
+  if(k==='bar')b+=`<line x1="${+v[0]-40}" y1="${v[1]}" x2="${+v[0]+40}" y2="${v[1]}" stroke="#8a8597" stroke-width="4" stroke-linecap="round"/><line x1="${+v[0]+40}" y1="${v[1]}" x2="${+v[0]+40}" y2="200" stroke="#3a3642" stroke-width="5"/>`;
+  if(k==='bb'){const w=J[v[0]||'W'];f+=`<line x1="${(w[0]-6).toFixed(1)}" y1="${w[1].toFixed(1)}" x2="${(w[0]+6).toFixed(1)}" y2="${w[1].toFixed(1)}" stroke="#a7a2b0" stroke-width="3"/>`+pl(w,front?6:13)+`<circle cx="${w[0].toFixed(1)}" cy="${w[1].toFixed(1)}" r="3" fill="#a7a2b0"/>`}
+    if(k==='db'){f+=db(J.W);if(v[0]!=='1')b=db(J.W2)+b}
+  if(k==='dbC')f+=`<g transform="translate(${P(J.W[0],J.W[1]-2)}) rotate(90)">${db([0,0]).replace(/<g[^>]*>|<\/g>/g,'')}</g>`;
+  if(k==='band'){f+=band(J.T?[J.A[0]+4,J.A[1]+2]:J.A,J.W);b=band([J.A2[0]+4,J.A2[1]+2],J.W2)+b}
+  if(k==='bandA')f+=band([+v[0],+v[1]],J.W);
+  if(k==='bandW')f+=band(J.W,J.W2);
+  if(k==='cable')f+=`<line x1="${v[0]}" y1="${v[1]}" x2="${J.W[0].toFixed(1)}" y2="${J.W[1].toFixed(1)}" stroke="#a7a2b0" stroke-width="1.5"/><circle cx="${v[0]}" cy="${v[1]}" r="5" fill="#3a3642" stroke="#5b5666"/>`;
+  if(k==='hbar'){const w=J.W;f+=`<line x1="${(w[0]-30).toFixed(1)}" y1="${w[1].toFixed(1)}" x2="${(w[0]+12).toFixed(1)}" y2="${w[1].toFixed(1)}" stroke="#a7a2b0" stroke-width="4" stroke-linecap="round"/>`}
+  if(k==='plate'){const a=ang(J.H,J.A),c=J.T;const d=dir(a+90);f+=`<line x1="${(c[0]-d[0]*22).toFixed(1)}" y1="${(c[1]-d[1]*22).toFixed(1)}" x2="${(c[0]+d[0]*22).toFixed(1)}" y2="${(c[1]+d[1]*22).toFixed(1)}" stroke="#5b5666" stroke-width="6" stroke-linecap="round"/>`}
+  if(k==='bike')b+=`<circle cx="${v[0]}" cy="${v[1]}" r="20" fill="none" stroke="#4a4554" stroke-width="4"/><line x1="${v[0]}" y1="${v[1]}" x2="${+v[0]-20}" y2="122" stroke="#4a4554" stroke-width="6"/><line x1="${v[0]}" y1="${v[1]}" x2="${+v[0]+38}" y2="108" stroke="#4a4554" stroke-width="5"/><rect x="${+v[0]-34}" y="117" width="26" height="6" rx="3" fill="#5b5666"/><line x1="${+v[0]-30}" y1="196" x2="${+v[0]+48}" y2="196" stroke="#4a4554" stroke-width="6" stroke-linecap="round"/>`;
+  if(k==='tread')b+=`<rect x="60" y="194" width="170" height="8" rx="4" fill="#3a3642"/><line x1="222" y1="196" x2="238" y2="120" stroke="#4a4554" stroke-width="5"/><rect x="226" y="112" width="24" height="10" rx="3" fill="#4a4554"/>`;
+ });return[b,f]}
+function figure(J,hl,front){
+ const c=(s,near)=>hl.includes(s)?(near?HL:HL2):(near?NEAR:FAR);
+ let o=seg(J.H,J.K2,13,c('th',0))+seg(J.K2,J.A2,10,c('sh',0))+seg(J.A2,J.T2,6,FAR)+seg(J.S,J.E2,9,c('ua',0))+seg(J.E2,J.W2,8,c('fa',0));
+ o+=seg(J.H,J.N,20,c('to',1))+(hl.includes('core')?seg(add(J.H,ang(J.H,J.N),8),add(J.H,ang(J.H,J.N),30),10,HL):'')+(hl.includes('back')?seg(add(J.H,ang(J.H,J.N),14),add(J.H,ang(J.H,J.N),40),9,HL):'');
+ o+=seg(J.N,J.Hd,7,NEAR)+`<circle cx="${J.Hd[0].toFixed(1)}" cy="${J.Hd[1].toFixed(1)}" r="9.5" fill="${NEAR}"/>`;
+ if(hl.includes('glute'))o+=`<circle cx="${J.H[0].toFixed(1)}" cy="${J.H[1].toFixed(1)}" r="9" fill="${HL}"/>`;
+ o+=seg(J.H,J.K,13,c('th',1))+seg(J.K,J.A,10,c('sh',1))+seg(J.A,J.T,6,c('calf',1));
+ if(hl.includes('sho'))o+=`<circle cx="${J.S[0].toFixed(1)}" cy="${J.S[1].toFixed(1)}" r="7" fill="${HL}"/>`;
+ o+=seg(J.S,J.E,9,c('ua',1))+seg(J.E,J.W,8,c('fa',1));return o}
+/* front view (lateral raises, pull-aparts) */
+function front(p,hl,pr){const cx=160,fy=195,hipY=118,sY=78,arm=56;const o=[];const L2=(a,b,w,c)=>seg(a,b,w,c);
+ const s1=[cx-17,sY],s2=[cx+17,sY],f=p.fs??1,len=arm*f;
+ const a1=add(s1,90+p.arm,len),a2=add(s2,90-p.arm,len);
+ let g=L2([cx-8,hipY],[cx-10,fy],12,NEAR)+L2([cx+8,hipY],[cx+10,fy],12,NEAR)+L2([cx,hipY-4],[cx,sY+2],26,NEAR)+`<circle cx="${cx}" cy="${sY-20}" r="10" fill="${NEAR}"/>`+L2([cx,sY-8],[cx,sY-2],7,NEAR);
+ const ac=hl.includes('ua')||hl.includes('sho')?HL:NEAR;g+=L2(s1,a1,9,ac)+L2(s2,a2,9,ac);
+ if(hl.includes('sho'))g+=`<circle cx="${s1[0]}" cy="${s1[1]}" r="7" fill="${HL}"/><circle cx="${s2[0]}" cy="${s2[1]}" r="7" fill="${HL}"/>`;
+ let f2='';(pr||[]).forEach(x=>{if(x==='db')f2+=[a1,a2].map(w=>`<rect x="${(w[0]-3).toFixed(1)}" y="${(w[1]-9).toFixed(1)}" width="6" height="18" rx="2" fill="#3a3642" stroke="#5b5666"/>`).join('');
+  if(x==='band')f2+=[[a1,[cx-10,fy]],[a2,[cx+10,fy]]].map(([w,a])=>seg(w,a,3,'#3fe0a6')).join('');if(x==='bandW')f2+=seg(a1,a2,3,'#3fe0a6')});
+ return g+f2}
+/* timing: A hold, A->B, B hold, B->A */
+const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+function at(def,ms){const[d1,d2,h1,h2]=def.tm||[1.6,1.1,.5,.35],T=d1+d2+h1+h2,t=(ms/1000)%T;let k,ph;
+ if(t<h1){k=0;ph=0}else if(t<h1+d1){k=ease((t-h1)/d1);ph=1}else if(t<h1+d1+h2){k=1;ph=2}else{k=1-ease((t-h1-d1-h2)/d2);ph=3}return{k,ph,T}}
+function resolve(p){const J=fk(p),q={...p};q.th=J._K;q.sh=J._A;q.th2=J._K2;q.sh2=J._A2;q.ua=J._E;q.fa=J._W;q.ua2=J._E2;q.fa2=J._W2;return q}
+function frame(def,ms){const{k,ph}=at(def,ms);let svg;
+ if(def.front){const p={arm:lerp(def.a.arm,def.b.arm,k),fs:lerp(def.a.fs??1,def.b.fs??1,k)};svg=front(p,def.hl||[],def.pr)}
+ else{let a=resolve(norm(def.a)),b=resolve(norm(def.b));['pA','pA2','pW','pW2'].forEach(x=>{if(!a[x]||!b[x]){a[x]=null;b[x]=null}});let p=mix(a,b,k);
+  if(def.cyc){const ph2=(ms/1000/(def.cyc.T||1.4))*360,[cx,cy,rx,ry]=def.cyc.c;p={...a,pA:[cx+rx*Math.cos(ph2*R),cy+ry*Math.sin(ph2*R)],pA2:[cx+rx*Math.cos((ph2+180)*R),cy+ry*Math.sin((ph2+180)*R)]};
+   if(def.cyc.arms){const s=Math.sin(ph2*R);p.ua=90+s*28;p.fa=60+s*20;p.ua2=90-s*28;p.fa2=60-s*20}}
+  const J=fk(p);J._to=p.to;const[b1,f1]=props(J,def.pr);svg=b1+figure(J,def.hl||[])+f1}
+ return{svg,ph}}
+const DEFS='<defs><linearGradient id="anH" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="320" y2="210"><stop offset="0" stop-color="#ffb35c"/><stop offset="1" stop-color="#ff4d3a"/></linearGradient></defs><line x1="10" y1="200" x2="310" y2="200" stroke="#34303d" stroke-width="2"/>';
+return{frame,DEFS,at}})();
+
+/* ---------- technique animations: poses (side view, facing right) ---------- */
+const STAND={},SQ={to:-50,th:12,sh:118,hd:-62},HINGE={to:-22,th:58,sh:100,hd:-10};
+const LIE={r:'H',x:165,y:150,to:180,hd:180,pA:[214,195],sA:-1};
+const C_SQ=['Стоя, стопы на ширине плеч','Вниз: таз назад, колени по носкам — вдох','Нижняя точка: бедро параллельно полу','Вверх через пятки — выдох'];
+const C_PUSH=['Руки прямые, тело — одна линия','Опускайся медленно — вдох','Внизу: грудь почти у опоры','Выжми вверх — выдох'];
+const C_PULL=['Руки прямые, лопатки сведены','Тяни локтями — выдох','Пиковое сокращение, пауза','Медленно верни — вдох'];
+const C_PRESS=['Исходное положение','Выжми вверх — выдох','Руки выпрямлены, не до щелчка','Медленно опусти — вдох'];
+const C_HOLD=['Держи положение','Дыши ровно, пресс напряжён','Тело — одна прямая линия','Не проваливай поясницу'];
+const AN_DEFS={
+ squat:{a:{ar:-90,fr:0},b:{...SQ,ar:-130,fr:0},hl:['th','glute'],cap:C_SQ},
+ squatBB:{a:{ar:60,fr:-194},b:{...SQ,ar:60,fr:-194},hl:['th','glute'],pr:['bb'],cap:C_SQ},
+ squatBand:{a:{ar:-30,fr:-150},b:{...SQ,ar:-30,fr:-150},hl:['th','glute'],pr:['band'],cap:C_SQ},
+ goblet:{a:{ar:-30,fr:-150},b:{...SQ,ar:-30,fr:-150},hl:['th','glute'],pr:['dbC'],cap:C_SQ},
+ squatDB:{a:{},b:{...SQ,ua:90,fa:90},hl:['th','glute'],pr:['db'],cap:C_SQ},
+ jumpSquat:{a:{y:178,ft:55,ar:-150,fr:0},b:{...SQ,ar:20,fr:0},hl:['th','glute','calf'],tm:[.7,.45,.15,.2],cap:['В прыжке: тело прямое','Мягко приземлись в присед','Присед — набери силу','Мощно выпрыгни вверх']},
+ legPress:{a:{r:'H',x:118,y:150,to:-145,hd:-125,th:-38,sh:-38,ft:-128,ua:80,fa:20},b:{r:'H',x:118,y:150,to:-145,hd:-125,th:-82,sh:-2,ft:-92,ua:80,fa:20},hl:['th','glute'],pr:['back:-145:62','plate'],cap:['Ноги почти выпрямлены','Опускай платформу — вдох','Колени под 90°','Выжми — выдох']},
+ rdl:{a:{ar:0,fr:0},b:{...HINGE,ua:90,fa:90},hl:['th','glute','back'],pr:['bb'],cap:['Стоя, гриф у бёдер','Таз назад, спина прямая — вдох','Гриф на середине голени','Вверх, сжимая ягодицы — выдох']},
+ rdlDB:{a:{ar:0,fr:0},b:{...HINGE,ua:90,fa:90},hl:['th','glute','back'],pr:['db'],cap:['Стоя, гантели у бёдер','Таз назад, спина прямая — вдох','Гантели на середине голени','Вверх, сжимая ягодицы — выдох']},
+ deadlift:{a:{ar:0,fr:0},b:{to:-32,th:28,sh:112,hd:-15,ua:90,fa:90},hl:['th','glute','back'],pr:['bb'],cap:['Стоя прямо со штангой','Опусти гриф вдоль ног — вдох','Гриф у пола, спина прямая','Встань, толкая пол — выдох']},
+ goodMorning:{a:{ar:-30,fr:-150},b:{...HINGE,ar:-30,fr:-150},hl:['th','glute','back'],pr:['band'],cap:['Стоя, резинка на плечах','Наклон с прямой спиной — вдох','Корпус почти параллельно полу','Вверх, сжимая ягодицы — выдох']},
+ bridge:{a:{...LIE,r:'H',x:150,y:186,to:180,ua:2,fa:0,pA:[196,194]},b:{...LIE,r:'H',x:150,y:158,to:151,hd:180,ua:20,fa:0,pA:[196,194]},hl:['glute','th'],tm:[1,1.2,.4,.8],cap:['Лёжа, стопы на полу','Подними таз — выдох','Наверху сожми ягодицы на 1–2 сек','Медленно опусти — вдох']},
+ bridgeBB:{a:{...LIE,r:'H',x:150,y:186,to:180,pW:[148,178],sW:-1,pA:[196,194]},b:{...LIE,r:'H',x:150,y:158,to:151,hd:180,pW:[148,150],sW:-1,pA:[196,194]},hl:['glute','th'],pr:['bench:40:168:60','bb:H'],tm:[1,1.2,.4,.8],cap:['Лопатки на скамье, гриф на бёдрах','Подними таз — выдох','Тело прямое, ягодицы сжаты','Медленно опусти — вдох']},
+ bridge1:{a:{...LIE,r:'H',x:150,y:186,to:180,ua:2,fa:0,pA:[196,194],pA2:null,th2:-40,sh2:-40},b:{...LIE,r:'H',x:150,y:158,to:151,hd:180,ua:20,fa:0,pA:[196,194],pA2:null,th2:-30,sh2:-30},hl:['glute','th'],tm:[1,1.2,.4,.8],cap:['Одна нога вверх, другая на полу','Подними таз — выдох','Таз ровный, без перекоса','Медленно опусти — вдох']},
+ kickback:{a:{r:'H',x:110,y:157,to:-17,ua:90,fa:90,th:90,sh:180,ft:90,hd:0},b:{r:'H',x:110,y:157,to:-17,ua:90,fa:90,th:198,sh:-80,ft:10,th2:90,sh2:180,ft2:90,hd:0},hl:['glute'],tm:[.9,.9,.4,.4],cap:['Упор на коленях и ладонях','Отведи ногу вверх — выдох','Пауза, ягодица сжата','Медленно верни — вдох']},
+ lunge:{a:{r:'H',x:143,y:118,pA:[178,194],pA2:[106,186],ft2:-30,sA:-1,sA2:-1},b:{r:'H',x:140,y:152,pA:[178,194],pA2:[106,186],ft2:-30,sA:-1,sA2:-1},hl:['th','glute'],cap:['Широкий шаг, корпус прямо','Опустись вниз — вдох','Колени под 90°','Оттолкнись передней ногой — выдох']},
+ lungeDB:{a:{r:'H',x:143,y:118,pA:[178,194],pA2:[106,186],ft2:-30,sA:-1,sA2:-1},b:{r:'H',x:140,y:152,pA:[178,194],pA2:[106,186],ft2:-30,sA:-1,sA2:-1},hl:['th','glute'],pr:['db'],cap:['Широкий шаг, гантели в руках','Опустись вниз — вдох','Колени под 90°','Оттолкнись передней ногой — выдох']},
+ bulgarian:{a:{r:'H',x:150,y:116,pA:[182,194],pA2:[92,158],ft2:180,sA:-1,sA2:-1},b:{r:'H',x:145,y:148,pA:[182,194],pA2:[92,158],ft2:180,sA:-1,sA2:-1},hl:['th','glute'],pr:['bench:50:160:55','db'],cap:['Задняя нога на скамье','Опустись вертикально — вдох','Переднее колено под 90°','Вверх через пятку — выдох']},
+ stepUp:{a:{r:'H',x:146,y:124,pA:[188,164],pA2:[140,194],sA:-1,sA2:-1},b:{r:'H',x:180,y:88,pA:[188,164],pA2:[176,164],sA:-1,sA2:-1},hl:['th','glute'],pr:['box:165:170:60','db'],cap:['Одна стопа на опоре','Поднимись за счёт этой ноги — выдох','Встань на опору полностью','Опустись подконтрольно — вдох']},
+ stepUpKnee:{a:{r:'H',x:146,y:124,pA:[188,164],pA2:[140,194],sA:-1,sA2:-1},b:{r:'H',x:182,y:88,pA:[188,164],pA2:null,th2:-15,sh2:85,sA:-1},hl:['th','glute'],pr:['box:165:170:60'],cap:['Одна стопа на опоре','Поднимись — выдох','Подними колено вверх','Опустись подконтрольно — вдох']},
+ bench:{a:{...LIE,ua:-90,fa:-90},b:{...LIE,pW:[128,136],sW:1},hl:['ua','to'],pr:['bench:72:158:118','bb'],tm:[1.6,1,.4,.3],cap:['Гриф над грудью, лопатки сведены','Опусти к низу груди — вдох','Гриф касается груди','Выжми вверх — выдох']},
+ benchDB:{a:{...LIE,ua:-90,fa:-90},b:{...LIE,pW:[126,134],sW:1},hl:['ua','to'],pr:['bench:72:158:118','db:1'],tm:[1.6,1,.4,.3],cap:['Гантели над грудью','Опусти к уровню груди — вдох','Локти под 45°','Выжми вверх — выдох']},
+ chestPress:{a:{r:'H',x:128,y:156,to:-90,th:0,sh:90,pW:[182,113],sW:1},b:{r:'H',x:128,y:156,to:-90,th:0,sh:90,pW:[141,117],sW:1},hl:['ua','to'],pr:['seat:96:156:60','back:-90:62'],tm:[1.4,1,.4,.3],cap:['Рукояти у груди, спина прижата','Выжми вперёд — выдох','Руки почти прямые','Медленно верни — вдох']},
+ bandPress:{a:{pW:[204,74],sW:1},b:{pW:[163,79],sW:1},hl:['ua','to'],pr:['bandA:118:80'],tm:[1.2,1,.4,.3],cap:['Резинка за спиной','Выжми вперёд — выдох','Руки прямые','Медленно верни — вдох']},
+ pushup:{a:{r:'A',x:62,y:192,sh:155.3,th:155.3,to:-24.7,hd:-20,ft:65,pW:[176,197],sW:1},b:{r:'A',x:62,y:192,sh:170,th:170,to:-10,hd:-6,ft:80,pW:[176,197],sW:1},hl:['ua','to'],tm:[1.4,.9,.4,.3],cap:C_PUSH},
+ incline:{a:{r:'A',x:62,y:192,sh:134,th:134,to:-46,hd:-40,ft:50,pW:[150,160],sW:1},b:{r:'A',x:62,y:192,sh:154,th:154,to:-26,hd:-20,ft:70,pW:[150,160],sW:1},hl:['ua','to'],pr:['bench:130:160:55'],tm:[1.4,.9,.4,.3],cap:C_PUSH},
+ ohp:{a:{ar:-30,fr:-150},b:{ua:-93,fa:-90},hl:['sho','ua'],pr:['bb'],tm:[1,1.4,.4,.4],cap:['Гриф на груди, пресс напряжён','Выжми над головой — выдох','Руки выпрямлены','Опусти к груди — вдох']},
+ seatedPress:{a:{r:'H',x:130,y:158,to:-90,th:0,sh:90,ua:105,fa:-95},b:{r:'H',x:130,y:158,to:-90,th:0,sh:90,ua:-92,fa:-92},hl:['sho','ua'],pr:['seat:98:158:62','back:-90:58','db:1'],tm:[1,1.4,.4,.4],cap:['Гантели у ушей, спина прижата','Выжми вверх — выдох','Руки почти прямые','Медленно опусти — вдох']},
+ bandOHP:{a:{ar:-30,fr:-150},b:{ua:-93,fa:-90},hl:['sho','ua'],pr:['band'],tm:[1,1.4,.4,.4],cap:['Резинка под стопами, руки у плеч','Выжми вверх — выдох','Руки выпрямлены','Опусти к плечам — вдох']},
+ lateral:{front:1,a:{arm:12},b:{arm:88},hl:['sho'],pr:['db'],tm:[1,1.4,.4,.4],cap:['Гантели у бёдер, локти чуть согнуты','Подними в стороны — выдох','До уровня плеч','Медленно опусти — вдох']},
+ lateralBand:{front:1,a:{arm:12},b:{arm:85},hl:['sho'],pr:['band'],tm:[1,1.4,.4,.4],cap:['Резинка под стопами','Подними в стороны — выдох','До уровня плеч','Медленно опусти — вдох']},
+ pullApart:{front:1,a:{arm:90,fs:.28},b:{arm:90,fs:1},hl:['sho','ua'],pr:['bandW'],tm:[1,1.2,.4,.4],cap:['Руки перед собой, резинка натянута','Разведи руки — выдох','Лопатки сведены','Медленно верни — вдох']},
+ row:{a:{...HINGE,to:-18,ua:90,fa:90},b:{...HINGE,to:-18,pW:[150,124],sW:1},hl:['back','ua'],pr:['bb'],tm:[1,1.4,.4,.4],cap:C_PULL},
+ rowBand:{a:{...HINGE,to:-18,ua:90,fa:90},b:{...HINGE,to:-18,pW:[150,124],sW:1},hl:['back','ua'],pr:['band'],tm:[1,1.4,.4,.4],cap:C_PULL},
+ rowDB:{a:{r:'H',x:102,y:128,to:-4,hd:4,pA:[92,194],sA:-1,pA2:null,th2:80,sh2:178,ft2:90,ua:90,fa:90,pW2:[158,166]},b:{r:'H',x:102,y:128,to:-4,hd:4,pA:[92,194],sA:-1,pA2:null,th2:80,sh2:178,ft2:90,pW:[126,120],sW:1,pW2:[158,166]},hl:['back','ua'],pr:['bench:100:166:95','db:1'],tm:[1,1.4,.4,.4],cap:C_PULL},
+ cableRow:{a:{r:'H',x:110,y:178,to:-78,th:-6,sh:-6,ft:-96,pW:[172,139],sW:1},b:{r:'H',x:110,y:178,to:-96,th:-6,sh:-6,ft:-96,pW:[120,150],sW:1},hl:['back','ua'],pr:['cable:268:150'],tm:[1,1.4,.4,.4],cap:C_PULL},
+ inverted:{a:{r:'A',x:62,y:192,sh:155,th:155,to:-25,hd:-25,ft:-60,pW:[178,86],sW:1},b:{r:'A',x:62,y:192,sh:140,th:140,to:-40,hd:-40,ft:-45,pW:[178,86],sW:1},hl:['back','ua'],pr:['bar:170:86'],tm:[1.2,1.4,.4,.4],cap:['Вис под перекладиной, тело прямое','Тяни грудь к перекладине — выдох','Лопатки сведены','Медленно опустись — вдох']},
+ superman:{a:{r:'H',x:140,y:188,to:0,hd:0,th:180,sh:180,ft:120,ua:0,fa:0},b:{r:'H',x:140,y:186,to:-16,hd:-20,th:192,sh:194,ft:130,ua:-18,fa:-18},hl:['back','glute'],tm:[1,1,1.2,.5],cap:['Лёжа на животе','Подними грудь и ноги — выдох','Задержись на 2 секунды','Медленно опусти — вдох']},
+ boat:{a:{r:'H',x:140,y:188,to:0,hd:0,th:180,sh:180,ft:120,ua:178,fa:178},b:{r:'H',x:140,y:186,to:-16,hd:-20,th:188,sh:190,ft:130,ua:192,fa:192},hl:['back'],tm:[1,1,1.2,.5],cap:['Лёжа на животе, руки в стороны','Своди лопатки, подними грудь — выдох','Задержись на 2 секунды','Медленно опусти — вдох']},
+ pulldown:{a:{r:'H',x:132,y:156,to:-95,th:0,sh:90,ua:-97,fa:-93},b:{r:'H',x:132,y:156,to:-100,th:0,sh:90,pW:[142,100],sW:-1},hl:['back','ua'],pr:['seat:100:156:62','cable:128:6'],tm:[1,1.4,.4,.4],cap:['Руки вверху, грудь вперёд','Тяни к верху груди — выдох','Локти вниз, лопатки сведены','Медленно отпусти — вдох']},
+ pullup:{a:{r:'W',x:160,y:22,fa:-92,ua:-92,to:-92,th:98,sh:82,ft:20},b:{r:'W',x:160,y:22,fa:-100,ua:72,to:-97,th:102,sh:80,ft:20},hl:['back','ua'],pr:['hbar'],tm:[1.4,1.2,.5,.4],cap:['Вис на прямых руках','Тянись грудью к перекладине — выдох','Подбородок над перекладиной','Медленно опустись — вдох']},
+ legRaise:{a:{r:'W',x:160,y:22,fa:-92,ua:-92,to:-92,th:92,sh:92,ft:20},b:{r:'W',x:160,y:22,fa:-92,ua:-92,to:-98,th:-8,sh:85,ft:20},hl:['core','th'],pr:['hbar'],tm:[1.4,1.1,.4,.4],cap:['Вис на прямых руках','Подними колени к груди — выдох','Без раскачки','Медленно опусти — вдох']},
+ curl:{a:{ua:92,fa:90},b:{ua:86,fa:-62},hl:['ua'],pr:['db'],tm:[1,1.5,.4,.4],cap:['Руки опущены, локти у корпуса','Согни руки — выдох','Пиковое сокращение','Медленно опусти — вдох']},
+ curlBB:{a:{ua:92,fa:90},b:{ua:86,fa:-62},hl:['ua'],pr:['bb'],tm:[1,1.5,.4,.4],cap:['Руки опущены, локти у корпуса','Согни руки — выдох','Пиковое сокращение','Медленно опусти — вдох']},
+ skull:{a:{...LIE,ua:-102,fa:-95},b:{...LIE,ua:-102,fa:150},hl:['ua'],pr:['bench:72:158:118','bb'],tm:[1.5,1,.4,.3],cap:['Руки вертикально над грудью','Согни локти, гриф ко лбу — вдох','Локти неподвижны','Разогни руки — выдох']},
+ ohExt:{a:{ua:-96,fa:-92},b:{ua:-100,fa:110},hl:['ua'],pr:['db:1'],tm:[1.5,1,.4,.3],cap:['Гантель над головой','Опусти за голову — вдох','Локти смотрят вверх','Разогни руки — выдох']},
+ ohExtBand:{a:{ua:-96,fa:-92},b:{ua:-100,fa:110},hl:['ua'],pr:['bandA:132:190'],tm:[1.5,1,.4,.3],cap:['Руки над головой, резинка натянута','Опусти за голову — вдох','Локти смотрят вверх','Разогни руки — выдох']},
+ dips:{a:{r:'H',x:124,y:148,to:-90,pA:[222,193],sA:-1,pW:[112,160],sW:1},b:{r:'H',x:128,y:178,to:-84,pA:[222,193],sA:-1,pW:[112,160],sW:1},hl:['ua'],pr:['bench:64:160:62'],tm:[1.4,1,.4,.3],cap:['Руки на скамье за спиной','Опустись, локти до 90° — вдох','Плечи не поднимаются к ушам','Выжми себя вверх — выдох']},
+ closePush:{a:{r:'A',x:62,y:192,sh:155.3,th:155.3,to:-24.7,hd:-20,ft:65,pW:[172,197],sW:1},b:{r:'A',x:62,y:192,sh:170,th:170,to:-10,hd:-6,ft:80,pW:[172,197],sW:1},hl:['ua'],tm:[1.4,.9,.4,.3],cap:['Ладони близко, тело прямое','Опускайся, локти вдоль корпуса — вдох','Грудь почти у пола','Выжми вверх — выдох']},
+ plank:{a:{r:'A',x:58,y:193,sh:167,th:167,to:-13,hd:-10,ft:80,ua:90,fa:-2},b:{r:'A',x:58,y:193,sh:166.2,th:166.2,to:-13.8,hd:-10,ft:80,ua:90,fa:-2},hl:['core'],tm:[2,2,.2,.2],cap:C_HOLD},
+ sidePlank:{a:{r:'A',x:58,y:193,sh:159,th:159,to:-21,hd:-20,ft:0,ua:96,fa:-4,ua2:-92,fa2:-92},b:{r:'A',x:58,y:193,sh:158,th:158,to:-22,hd:-20,ft:0,ua:96,fa:-4,ua2:-92,fa2:-92},hl:['core'],tm:[2,2,.2,.2],cap:['Опора на локоть и стопу','Таз держи высоко','Тело — одна прямая линия','Дыши ровно']},
+ deadBug:{a:{r:'H',x:150,y:190,to:180,hd:180,ua:-92,fa:-92,th:-90,sh:0,ft:-90},b:{r:'H',x:150,y:190,to:180,hd:180,ua:188,fa:186,ua2:-92,fa2:-92,th:-90,sh:0,ft:-90,th2:-12,sh2:-8,ft2:-98},hl:['core'],tm:[1.4,1.2,.5,.5],cap:['Лёжа, руки вверх, колени над тазом','Вытяни руку и противоположную ногу — выдох','Поясница прижата к полу','Верни и смени сторону — вдох']},
+ crunch:{a:{...LIE,r:'H',x:150,y:188,to:180,hd:180,ar:-150,fr:150,pA:[196,194],sA:-1},b:{...LIE,r:'H',x:150,y:188,to:-152,hd:-140,ar:-150,fr:150,pA:[196,194],sA:-1},hl:['core'],tm:[1,1.2,.4,.4],cap:['Лёжа, колени согнуты','Оторви лопатки — выдох','Поясница прижата','Медленно опустись — вдох']},
+ calf:{a:{},b:{y:184,ft:48},hl:['calf'],tm:[1,1.2,.6,.3],cap:['Стоя, вес на передней части стопы','Поднимись на носки — выдох','Задержись на секунду','Медленно опусти пятки — вдох']},
+ calfDB:{a:{},b:{y:184,ft:48},hl:['calf'],pr:['db'],tm:[1,1.2,.6,.3],cap:['Гантели в руках','Поднимись на носки — выдох','Задержись на секунду','Медленно опусти пятки — вдох']},
+ calfBand:{a:{ar:-30,fr:-150},b:{y:184,ft:48,ar:-30,fr:-150},hl:['calf'],pr:['band'],tm:[1,1.2,.6,.3],cap:['Резинка под носками','Поднимись на носки — выдох','Задержись на секунду','Медленно опусти пятки — вдох']},
+ walk:{a:{r:'H',x:150,y:117,th:68,sh:98,th2:112,sh2:118,ft:-10,ft2:20,ua:68,fa:38,ua2:112,fa2:100},b:{r:'H',x:150,y:117,th:112,sh:118,th2:68,sh2:98,ft:20,ft2:-10,ua:112,fa:100,ua2:68,fa2:38},hl:['th','calf'],tm:[.55,.55,0,0],cap:['Быстрый шаг','Работай руками','Дыхание учащённое, но можно говорить','Держи темп']},
+ tread:{a:{r:'H',x:150,y:115,th:68,sh:98,th2:112,sh2:118,ft:-10,ft2:20,ua:68,fa:38,ua2:112,fa2:100},b:{r:'H',x:150,y:115,th:112,sh:118,th2:68,sh2:98,ft:20,ft2:-10,ua:112,fa:100,ua2:68,fa2:38},hl:['th','calf'],pr:['tread'],tm:[.55,.55,0,0],cap:['Быстрый шаг 5–6 км/ч','Работай руками','Дыхание учащённое, но можно говорить','Держи темп']},
+ bike:{a:{r:'H',x:134,y:118,to:-52,hd:-35,pW:[198,108],sW:1},b:{r:'H',x:134,y:118,to:-52,hd:-35,pW:[198,108],sW:1},cyc:{c:[150,168,17,17],T:1},hl:['th'],pr:['bike:150:168'],tm:[1,1,0,0],cap:['Ровный темп','Колени по линии стоп','Можешь говорить, но с одышкой','Держи темп']},
+ elliptical:{a:{r:'H',x:150,y:110,to:-86,hd:-86,ua:70,fa:-10},b:{r:'H',x:150,y:110,to:-86,hd:-86,ua:70,fa:-10},cyc:{c:[150,186,24,6],T:1.2,arms:1},hl:['th'],pr:['tread'],tm:[1,1,0,0],cap:['Спина прямая','Плавный шаг без рывков','Щадит колени','Держи темп']},
+ climber:{a:{r:'A',x:58,y:192,sh:152,th:152,to:-28,hd:-22,ft:65,pW:[172,197],sW:-1},b:{r:'A',x:58,y:192,sh:152,th:152,to:-28,hd:-22,ft:65,pW:[172,197],sW:-1}}
+};
+// mountain climber: near knee drives to chest
+AN_DEFS.climber={a:{r:'H',x:122,y:150,to:-28,hd:-22,pW:[168,197],sW:1,pA:[58,192],pA2:[58,192],sA:1,sA2:1,ft:65,ft2:65},b:{r:'H',x:122,y:150,to:-28,hd:-22,pW:[168,197],sW:-1,pA:[128,186],pA2:[58,192],sA:-1,sA2:1,ft:40,ft2:65},hl:['core','th'],tm:[.35,.35,.05,.05],cap:['Упор лёжа, руки под плечами','Колено к груди','Таз на одной линии с корпусом','Быстрый темп']};
+// exercise name -> animation id
+const AN_MAP={'Приседания со штангой':'squatBB','Жим ногами':'legPress','Гоблет-присед с гантелью':'goblet','Приседания с гантелями':'squatDB','Приседания с резинкой':'squatBand','Приседания':'squat',
+ 'Становая тяга':'deadlift','Румынская тяга':'rdl','Румынская тяга с гантелями':'rdlDB','Наклоны с резинкой':'goodMorning','Ягодичный мост со штангой':'bridgeBB','Ягодичный мост':'bridge','Ягодичный мост на одной ноге':'bridge1','Отведение ноги назад':'kickback',
+ 'Выпады с гантелями':'lungeDB','Выпады':'lunge','Болгарские выпады':'bulgarian','Зашагивания на скамью':'stepUp','Зашагивания с подъёмом колена':'stepUpKnee',
+ 'Жим лёжа':'bench','Жим в тренажёре':'chestPress','Жим гантелей лёжа':'benchDB','Жим с резинкой':'bandPress','Отжимания':'pushup','Отжимания от опоры':'incline',
+ 'Жим штанги стоя':'ohp','Жим гантелей сидя':'seatedPress','Жим резинки вверх':'bandOHP','Махи гантелями в стороны':'lateral','Махи с резинкой':'lateralBand',
+ 'Тяга штанги в наклоне':'row','Тяга блока к поясу':'cableRow','Тяга гантели в наклоне':'rowDB','Австралийские подтягивания':'inverted','Лодочка с разведением рук':'boat','Разведение резинки':'pullApart','Тяга резинки в наклоне':'rowBand',
+ 'Тяга верхнего блока':'pulldown','Подтягивания':'pullup','Подтягивания обратным хватом':'pullup','Сгибания на бицепс':'curl','Молотки':'curl','Сгибания со штангой':'curlBB',
+ 'Французский жим':'skull','Разгибания из-за головы':'ohExt','Разгибания с резинкой':'ohExtBand','Обратные отжимания':'dips','Отжимания узкие':'closePush',
+ 'Планка':'plank','Боковая планка':'sidePlank','Мёртвый жук':'deadBug','Скручивания':'crunch','Супермен':'superman','Подъём ног в висе':'legRaise',
+ 'Подъём на носки':'calf','Подъём на носки с гантелями':'calfDB','Подъём на носки с резинкой':'calfBand','Велотренажёр':'bike','Эллипс':'elliptical','Ходьба на дорожке':'tread','Скалолаз':'climber','Выпрыгивания из приседа':'jumpSquat','Быстрая ходьба':'walk'};
+
+const ERR={squat:['Колени заваливаются внутрь','Пятки отрываются от пола','Спина округляется в нижней точке'],hinge:['Круглая спина','Вес далеко от ног','Переразгибание в пояснице наверху'],lunge:['Колено далеко уходит за носок','Корпус падает вперёд','Слишком короткий шаг'],glute:['Прогиб в пояснице наверху','Толчок носками вместо пяток','Слишком быстрый темп'],hpush:['Локти разведены под 90°','Таз провисает или задирается','Неполная амплитуда'],vpush:['Прогиб в пояснице','Рывок ногами','Локти уходят назад'],hpull:['Рывок корпусом','Тянешь руками, не сводя лопатки','Круглая спина'],vpull:['Раскачка','Неполная амплитуда','Плечи поднимаются к ушам'],biceps:['Раскачка корпусом','Локти уходят вперёд','Слишком быстрое опускание'],triceps:['Локти расходятся в стороны','Движение идёт из плеч','Слишком большой вес'],core:['Провисает поясница','Задержка дыхания','Напряжена шея'],calf:['Пружинящие движения','Неполная амплитуда','Сгибаются колени'],cardio:['Слишком высокий темп в начале','Сутулость','Задержка дыхания']};
+let anRaf=0,anSlow=1,anT0=0;
+function anRun(){cancelAnimationFrame(anRaf);const box=$('#anSvg');if(!box)return;const d=AN_DEFS[box.dataset.k];if(!d)return;anT0=performance.now();let last=-1;
+ if(!d.vb){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;const T=AN.at(d,0).T*1000;for(let i=0;i<12;i++){const sv=AN.frame(d,T*i/12).svg;for(const m of sv.matchAll(/(?:x1|x2|cx|x)="([\d.-]+)"\s+(?:y1|y2|cy|y)="([\d.-]+)"/g)){const x=+m[1],y=+m[2];if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}}
+  y1=Math.max(y1,202);x0-=18;x1+=18;y0-=18;y1+=6;let w=x1-x0,h=y1-y0;const r=320/210;if(w/h<r){const nw=h*r;x0-=(nw-w)/2;w=nw}else{const nh=w/r;y0-=nh-h;h=nh}
+  if(w>320){x0=0;y0=0;w=320;h=210}d.vb=[x0,y0,w,h].map(v=>v.toFixed(1)).join(' ')}
+ box.setAttribute('viewBox',d.vb);
+ const step=now=>{const el=$('#anSvg');if(!el||!$('#sheet').classList.contains('on')||el.dataset.k!==box.dataset.k)return;const ms=(now-anT0)*anSlow,f=AN.frame(d,ms);el.innerHTML=AN.DEFS+f.svg;
+  if(f.ph!==last){last=f.ph;const c=(d.cap||[])[f.ph]||'';$('#anCap').textContent=c;$('#anPh').textContent=['Старт','Движение','Пауза','Возврат'][f.ph];$('#anSvg').parentNode.querySelectorAll('.anst i').forEach((x,i)=>x.classList.toggle('on',i===f.ph))}
+  anRaf=requestAnimationFrame(step)};anRaf=requestAnimationFrame(step)}
 /* ---------- nav ---------- */
 const NAV=[['me','Профиль','<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>'],
  ['food','Питание','<path d="M7 3v8a2 2 0 0 0 4 0V3M9 11v10M17 3c-2 0-3 3-3 6s1 4 3 4v8"/>'],null,
@@ -780,11 +969,18 @@ function finishOB(){const N=norm(),p=plan();openSheet(head('Твой план г
 function safety(){openSheet(head('Перед тренировкой','Безопасность')+`<ul class="feat"><li>Разминка 5–7 минут: ходьба на месте, вращения в суставах, лёгкие приседания</li><li>Первый подход каждого упражнения — с лёгким весом</li><li>Дыши ровно, не задерживай дыхание на усилии</li><li>Пей воду между подходами</li></ul>
  <div class="warn">Сразу остановись, если появилась боль в груди, головокружение, тошнота, резкая боль в суставе или сильная одышка. Если это повторяется — обратись к врачу.</div><button class="btn" id="goW" style="margin-top:12px">Я размялся — начинаем</button>`);
  $('#goW').onclick=()=>{closeSheet();const f=document.querySelector('[data-set="0|0"]');if(f)f.scrollIntoView({behavior:'smooth',block:'center'})}}
-function exSheet(n){const X=EX[n];if(!X)return;const pe=((plan().days[selT]||{}).ex||[]).find(e=>e.n===n);
- openSheet(head(esc(n),'Техника выполнения')+(X.img?`<div class="demo"><img src="/ex/${X.img}/0.jpg" alt=""><img class="f2" src="/ex/${X.img}/1.jpg" alt=""><span class="lbl">▶ Анимация техники</span></div>`:'')+`<div class="muscles">${X.mu.split(', ').map(x=>`<span>${esc(x)}</span>`).join('')}</div>
- <p style="font-weight:600;font-size:16px;margin-top:0">${esc(X.tip)}</p>
+function exSheet(n,mode){const X=EX[n];if(!X)return;const pe=((plan().days[selT]||{}).ex||[]).find(e=>e.n===n),k=AN_MAP[n],d=AN_DEFS[k];mode=mode||(d?'anim':'photo');
+ const steps=X.tip.split(/(?<=\.)\s+/).filter(Boolean),tm=d&&d.tm||[1.6,1.1];
+ const viewer=mode==='anim'&&d?`<div class="anim"><svg id="anSvg" data-k="${k}" viewBox="0 0 320 210" role="img" aria-label="Анимация: ${esc(n)}"></svg>
+  <div class="anst"><i></i><i></i><i></i><i></i></div><div class="ancap"><span id="anPh"></span><b id="anCap"></b></div></div>`
+  :X.img?`<div class="demo"><img src="/ex/${X.img}/0.jpg" alt=""><img class="f2" src="/ex/${X.img}/1.jpg" alt=""><span class="lbl">Фото: начало и конец движения</span></div>`:'';
+ const tabs=d&&X.img?`<div class="seg3"><button data-exv="anim" aria-pressed="${mode==='anim'}">Анимация</button><button data-exv="photo" aria-pressed="${mode==='photo'}">Фото</button><button id="anSlow" aria-pressed="${anSlow<1}">${anSlow<1?'Обычно':'Медленно'}</button></div>`:d?`<div class="seg3" style="grid-template-columns:1fr"><button id="anSlow" aria-pressed="${anSlow<1}">${anSlow<1?'Обычная скорость':'Медленно'}</button></div>`:'';
+ openSheet(head(esc(n),'Техника выполнения')+viewer+tabs+`<div class="muscles">${X.mu.split(', ').map(x=>`<span>${esc(x)}</span>`).join('')}</div>
+ <div class="why"><b>Как делать</b><ol class="steps">${steps.map(x=>`<li>${esc(x)}</li>`).join('')}</ol>${d&&!/Держ|темп/i.test((d.cap||[])[1]||'')?`<p class="exwhy" style="margin-top:8px"><b>Темп:</b> ${String(tm[0]).replace('.',',')} сек туда · ${String(tm[1]).replace('.',',')} сек обратно, без рывков. <b>Дыхание:</b> выдох на усилии.</p>`:''}</div>
+ <div class="warn" style="color:#ffd77a"><b style="display:block;margin-bottom:4px">Частые ошибки</b>${(ERR[X.pt]||[]).map(x=>'• '+esc(x)).join('<br>')}</div>
  <div class="why"><b>Зачем это упражнение</b><p>${esc(pe?pe.why:PWHY[X.pt])}</p><b style="display:block;margin-top:10px">Почему этот вариант</b><p>${esc(vwhy(X))}</p></div>
- ${pe?`<p class="note" style="text-align:left">Сегодня: ${pe.s} × ${esc(pe.r)}${pe.rest?` · отдых ${pe.rest} с`:''}</p>`:''}<button class="btn" data-close style="margin-top:10px">Понятно</button>`)}
+ ${pe?`<p class="note" style="text-align:left">Сегодня: ${setsOf(pe)} × ${esc(pe.r)}${pe.rest?` · отдых ${pe.rest} с`:''}</p>`:''}<button class="btn" data-close style="margin-top:10px">Понятно</button>`);
+ $('#sheet').dataset.ex=n;anRun()}
 function premium(){let pick='y';const draw=()=>{openSheet(head('Premium','Моя подписка')+`<div class="freebox">${icon('i-star')}<h2>${PREM?'Активна':'Бесплатно'}</h2><p>${PREM?'Все функции открыты':'1 фото еды в день и базовая программа'}</p></div>
  <ul class="feat"><li>Безлимитный подсчёт калорий по фото</li><li>ИИ-тренер в чате 24/7</li><li>Персональная программа и прогрессия весов</li><li>План питания с меню на неделю</li><li>Разбор техники по видео</li></ul>
  <button class="plan" data-p="m" aria-pressed="${pick==='m'}"><span class="sp">Месяц</span><span class="price">449 ₽</span></button>
@@ -809,6 +1005,8 @@ document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)r
  if(d.fav!==undefined){const f=favs()[+d.fav];if(f)result({n:f.n,g:f.g||100,k:f.k,p:f.p,f:f.f,c:f.c},f.img||'')}
  if(d.set){const[i,s]=d.set.split('|').map(Number),k=dk(selT)+'#'+i,ex=(plan().days[selT]||{ex:[]}).ex[i]||{};DONE[k]=DONE[k]||[];DONE[k][s]=!DONE[k][s];render();haptic();if(DONE[k][s]&&ex.rest)startRest(ex.rest)}
  if(d.tip!==undefined)exSheet(d.tip);
+ if(d.exv)exSheet($('#sheet').dataset.ex,d.exv);
+ if(t.id==='anSlow'){anSlow=anSlow<1?1:.5;exSheet($('#sheet').dataset.ex,$('#anSvg')?'anim':'photo')}
  if(t.id==='startW')safety();
  if(t.id==='finish'){const b=burned(dk(selT));$('#tStop').click();
   openSheet(`<div class="freebox" style="margin-top:4px">${icon('i-fire')}<h2>Отличная работа!</h2><p>Сожжено около ${b} ккал — добавлено к дневной норме</p></div><button class="btn" data-close>Готово</button>`);haptic('heavy')}
