@@ -10,6 +10,7 @@ const secretOf = t => crypto.createHash('sha256').update('t24' + t).digest('hex'
    Ссылки — «Пригласительная ссылка» из настроек группы. */
 const COMMUNITY = {
   open: { id: process.env.GROUP_ID || '-1005846624298', link: process.env.GROUP_LINK || 'https://t.me/+-h81Nt0KHR01NjZi', thread: +process.env.GROUP_THREAD || 0 },
+  news: { id: process.env.NEWS_ID || '-1005811785963', link: process.env.NEWS_LINK || 'https://t.me/+rcig49zSCe44YjUy', thread: 0 },
   pro: { id: process.env.PRO_ID || '-1006045569304', link: process.env.PRO_LINK || 'https://t.me/+nwI91ban-4E1YWEy', thread: +process.env.PRO_THREAD || 0 }
 };
 // Пока нет оплаты: true — в PRO-чат пускаем всех по заявке (тестовый период).
@@ -73,19 +74,19 @@ async function daily() {
   const dow = now.getUTCDay(), days = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
   const kb = { inline_keyboard: [[botBtn('🔥 Открыть Тренер 24', 'daily')]] };
   if (dow === 0) {
-    const poll = { method: 'sendPoll', body: { question: 'Сколько тренировок было у тебя на этой неделе?', options: [{ text: '0 — начну с понедельника' }, { text: '1–2' }, { text: '3–4' }, { text: '5 и больше 💪' }], is_anonymous: false } };
-    return Promise.all(['open', 'pro'].map(k => postTo(k, poll)));
+    const poll = an => ({ method: 'sendPoll', body: { question: 'Сколько тренировок было у тебя на этой неделе?', options: [{ text: '0 — начну с понедельника' }, { text: '1–2' }, { text: '3–4' }, { text: '5 и больше 💪' }], is_anonymous: an } });
+    return Promise.all([postTo('news', poll(true)), postTo('pro', poll(false))]); // в канале опрос только анонимный
   }
   if (dow === 1) {
     const c = await challenge();
     const text = `🏆 <b>Челлендж недели: ${esc(c.title)}</b>\n\n${c.rules.map((r, i) => `${i + 1}. ${esc(r)}`).join('\n')}\n\nОтчитывайся с хэштегом ${esc(c.tag)} — в воскресенье подведём итоги!`;
-    return Promise.all(['open', 'pro'].map(k => postTo(k, { body: { text, parse_mode: 'HTML', reply_markup: kb } })));
+    return Promise.all(['news', 'pro'].map(k => postTo(k, { body: { text, parse_mode: 'HTML', reply_markup: kb } })));
   }
   const w = await workout(days[dow]);
   const list = w.ex.map(([n, d]) => `• ${esc(n)} — <b>${esc(d)}</b>`).join('\n');
   const open = `💪 <b>Тренировка дня: ${esc(w.title)}</b>\n\n${list}\n\n💡 ${esc(w.tip)}\n\nСделал — поставь 🔥 под этим постом!`;
   const pro = open + (w.food ? `\n\n🥗 <b>Питание дня:</b> ${esc(w.food)}` : '') + `\n\nЕсть вопрос по технике — отметь @${BOT} в сообщении, отвечу здесь.`;
-  return Promise.all([postTo('open', { body: { text: open, parse_mode: 'HTML', reply_markup: kb } }), postTo('pro', { body: { text: pro, parse_mode: 'HTML', reply_markup: kb } })]);
+  return Promise.all([postTo('news', { body: { text: open, parse_mode: 'HTML', reply_markup: kb } }), postTo('pro', { body: { text: pro, parse_mode: 'HTML', reply_markup: kb } })]);
 }
 
 /* ---------- обработка сообщений ---------- */
@@ -142,11 +143,11 @@ async function onPrivate(m, app) {
   const name = (m.from && m.from.first_name) || '';
   const rows = [[{ text: '🔥 Открыть Тренер 24', web_app: { url: app } }]];
   const comm = [];
-  if (COMMUNITY.open.link) comm.push({ text: '👥 Сообщество', url: COMMUNITY.open.link });
+  if (COMMUNITY.news.link) comm.push({ text: '📢 Канал новостей', url: COMMUNITY.news.link });
   if (COMMUNITY.pro.link) comm.push({ text: '⭐ PRO-чат', url: COMMUNITY.pro.link });
   if (comm.length) rows.push(comm);
   if (/^\/(chat|community)/.test(m.text || '')) {
-    return tg('sendMessage', { chat_id: m.chat.id, text: comm.length ? 'Наше сообщество: тренировка дня, челленджи и поддержка 💪' : 'Сообщество скоро откроется — следи за новостями!', reply_markup: { inline_keyboard: rows.slice(1).length ? rows.slice(1) : rows } });
+    return tg('sendMessage', { chat_id: m.chat.id, text: comm.length ? 'Канал «Тренер 24»: тренировка дня, челленджи и новости приложения 💪' : 'Сообщество скоро откроется — следи за новостями!', reply_markup: { inline_keyboard: rows.slice(1).length ? rows.slice(1) : rows } });
   }
   return tg('sendMessage', {
     chat_id: m.chat.id,
@@ -165,7 +166,7 @@ module.exports = async (req, res) => {
   const q = req.query || {};
 
   if (req.method === 'GET') {
-    if (q.cfg === '1') return res.json({ open: COMMUNITY.open.link, pro: COMMUNITY.pro.link });
+    if (q.cfg === '1') return res.json({ open: COMMUNITY.open.link, news: COMMUNITY.news.link, pro: COMMUNITY.pro.link });
     if (q.cron === '1') {
       const auth = req.headers.authorization || '', ua = req.headers['user-agent'] || '';
       const okCron = process.env.CRON_SECRET ? auth === 'Bearer ' + process.env.CRON_SECRET : /vercel-cron/i.test(ua);
