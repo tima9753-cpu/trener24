@@ -40,10 +40,26 @@ const num = v => Math.round(+v || 0);
 const who = P => `Пол ${P.sex === 'f' ? 'женский' : 'мужской'}, ${num(P.age)} лет, рост ${num(P.h)} см, вес ${P.w} кг, желаемый ${P.goalW} кг, ` +
   `цель: ${P.goal === 'cut' ? 'похудеть' : P.goal === 'bulk' ? 'набрать массу' : 'держать форму'}, уровень ${P.levelText || '—'}, ` +
   `тренировок в неделю ${P.days || '—'}, где и с чем: ${P.equipText || '—'}, ограничения здоровья: ${P.flagsText || 'нет'}` +
-  `${P.health ? '; ' + String(P.health).slice(0, 120) : ''}${P.gentle ? ' (щадящий режим)' : ''}. `;
+  `${P.health ? '; ' + String(P.health).slice(0, 120) : ''}${P.gentle ? ' (щадящий режим)' : ''}${P.noeat ? '; не ест: ' + String(P.noeat).slice(0, 150) : ''}. `;
+
+// Лимиты на человека, чтобы один пользователь не съел бюджет на ИИ. Хранятся в памяти функции —
+// это защита от спама; точный суточный учёт появится вместе с базой данных.
+const LIM = { photo: [30, 86400], machine: [20, 86400], text: [60, 86400], chat: [60, 3600], program: [8, 86400], meal: [8, 86400] };
+const HITS = new Map();
+function limited(uid, type) {
+  const l = LIM[type]; if (!l) return false;
+  const k = uid + ':' + type, now = Date.now(), a = (HITS.get(k) || []).filter(t => now - t < l[1] * 1000);
+  if (a.length >= l[0]) { HITS.set(k, a); return true; }
+  a.push(now); HITS.set(k, a);
+  if (HITS.size > 5000) for (const [kk, v] of HITS) if (!v.length || now - v[v.length - 1] > 86400e3) HITS.delete(kk);
+  return false;
+}
 
 // Статичные правила идут первым сообщением — так OpenAI кэширует их и запросы дешевле.
 const CHAT_RULES = 'Ты — ИИ-тренер приложения «Тренер 24»: тренировки, техника, питание, рецепты, восстановление, сон, мотивация и режим. ' +
+  'Ты видишь данные человека из приложения: программу, сегодняшнюю тренировку, историю тренировок с весами, самочувствие, вес, замеры, съеденное сегодня и воду. ' +
+  'Отвечай опираясь на эти цифры: называй конкретные упражнения, веса, граммы и калории из его данных, а не общие советы. Если данных не хватает — скажи, что именно записать в приложении. ' +
+  'Если самочувствие плохое или человек болеет — советуй облегчить или пропустить тренировку. Не выдумывай данные, которых нет. ' +
   'Пиши по-русски, на «ты», дружелюбно и конкретно, без воды и без markdown (никаких **, # и таблиц). ' +
   'Тема — только фитнес, питание и здоровый образ жизни. Если вопрос не по теме (политика, программирование, учёба, деньги, отношения, новости, развлечения и т. п.), не отвечай на него по существу: ' +
   'одной короткой фразой скажи, что ты фитнес-тренер, и сразу предложи что-то полезное по его цели и данным — рецепт, разбор дня или тренировку. ' +
@@ -133,6 +149,7 @@ module.exports = async (req, res) => {
       return res.json({ sub: ['creator', 'administrator', 'member'].includes(st) || (st === 'restricted' && !!r.result.is_member) });
     } catch (e) { return res.json({ sub: null }); }
   }
+  if (limited(user.id || 'anon', b.type)) return res.status(429).json({ error: b.type === 'chat' ? 'Слишком много сообщений подряд — передохни пару минут' : 'Лимит на сегодня исчерпан — попробуй завтра' });
   try {
     if (b.type === 'photo') {
       if (typeof b.image !== 'string' || !b.image.startsWith('data:image/') || b.image.length > 3e6)
@@ -189,7 +206,8 @@ module.exports = async (req, res) => {
       const data = `${who(P)}Текущая программа: ${String(P.planName || '—').slice(0, 60)}. Рацион: ${String(P.mealName || '—').slice(0, 60)}. ` +
         `Местное время: ${String(P.localTime || '').slice(0, 30)} (${String(P.tz || '').slice(0, 40)}). ` +
         `Норма в день: ${num(N.k)} ккал, белки ${num(N.p)} г, жиры ${num(N.f)} г, углеводы ${num(N.c)} г. Сегодня съедено: ${num(E.k)} ккал, белки ${num(E.p)} г, жиры ${num(E.f)} г, углеводы ${num(E.c)} г. ` +
-        String(P.regime || '').slice(0, 600);
+        String(P.regime || '').slice(0, 600) + ' ' + (P.strength ? 'Рабочие веса (первый → последний): ' + String(P.strength).slice(0, 500) + '. ' : '') +
+        String(b.context || '').slice(0, 3000);
       const hist = (Array.isArray(b.messages) ? b.messages : []).slice(-8)
         .map(m => ({ role: m.a ? 'assistant' : 'user', content: String(m.t || '').slice(0, 600) }));
       const out = await openai([{ role: 'system', content: CHAT_RULES }, { role: 'system', content: 'Данные пользователя: ' + data }, ...hist], false, 700, 0.5);
