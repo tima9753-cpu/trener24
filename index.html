@@ -270,6 +270,8 @@ input,select{font:inherit;font-size:16px;width:100%;min-height:50px;border-radiu
   <div class="list" id="dataList"></div>
   <div class="sec">Другое</div>
   <div class="list" style="overflow:visible;position:relative">
+   <button class="li" id="commOpen"><span class="ic">👥</span><span class="sp">Сообщество Тренер 24</span><span class="v">чат</span></button>
+   <button class="li" id="commPro"><span class="ic">⭐</span><span class="sp">PRO-чат с тренером</span><span class="v">PRO</span></button>
    <button class="li" id="invite"><span class="ic">🎁</span><span class="sp">Пригласить друга</span><span class="v"></span></button>
    <button class="li" id="redo"><span class="ic">📝</span><span class="sp">Пройти анкету заново</span></button>
    <button class="li" id="support"><span class="ic">💬</span><span class="sp">Поддержка</span></button>
@@ -1098,6 +1100,7 @@ document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)r
  if(t.id==='premBtn')premium();
  if(t.id==='invite'){const u=(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user)||{};const link='https://t.me/trener24sportlivebot?start=ref'+(u.id||'');const sh='https://t.me/share/url?url='+encodeURIComponent(link)+'&text='+encodeURIComponent('Считаю калории по фото и тренируюсь с ИИ-тренером — попробуй 💪');try{if(tg&&tg.openTelegramLink)tg.openTelegramLink(sh);else window.open(sh)}catch(e){toast('Не получилось открыть')}}
  if(t.id==='support')coach();
+ if(t.id==='commOpen'||t.id==='commPro')community(t.id==='commPro'?'pro':'open');
  if(t.id==='scanMachine'||t.id==='machAgain')$('#mach').click();
  if(t.id==='planWhy')openSheet(head('Почему такая программа','Как мы её составили')+planWhy().map(x=>`<p style="font-weight:600;line-height:1.5">${esc(x)}</p>`).join('')+`<button class="btn" data-close>Понятно</button>`);
  if(d.rem){const a=d.rem;if(a==='train'){selT=wd(today);go('train')}else if(a.startsWith('t:')){selT=+a.slice(2);go('train')}else if(a.startsWith('meal:'))addSheet(a.slice(5));else if(a==='water'){const D=day(key(today));D.w=Math.min(8,D.w+1);render();toast('+1 стакан воды')}}
@@ -1113,6 +1116,9 @@ document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)r
 document.addEventListener('click',e=>{const im=e.target.closest('img.exth');if(im)exSheet(im.dataset.tip)});
 $('#segStat').onclick=e=>{const b=e.target.closest('button');if(!b)return;range=+b.dataset.r;$('#segStat').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));render()};
 
+let COMM=null;async function community(k){try{if(!COMM)COMM=await (await fetch('/api/bot?cfg=1')).json()}catch(e){COMM=null}
+ const l=COMM&&COMM[k];if(!l){toast('Сообщество откроется совсем скоро 💪');return}
+ if(tg&&tg.openTelegramLink)tg.openTelegramLink(l);else location.href=l}
 go(view);
 (function tc(){clock();setTimeout(tc,1000-Date.now()%1000+20)})();
 document.addEventListener('visibilitychange',()=>{if(document.hidden)return;if(key(new Date())!==key(today)){location.reload();return}lastMin=-1;clock();if($('#timer').classList.contains('on'))tick()});
