@@ -9,8 +9,8 @@ const secretOf = t => crypto.createHash('sha256').update('t24' + t).digest('hex'
    id группы узнать так: добавить бота в группу админом и написать там /id.
    Ссылки — «Пригласительная ссылка» из настроек группы. */
 const COMMUNITY = {
-  open: { id: process.env.GROUP_ID || '', link: process.env.GROUP_LINK || '', thread: +process.env.GROUP_THREAD || 0 },
-  pro: { id: process.env.PRO_ID || '', link: process.env.PRO_LINK || '', thread: +process.env.PRO_THREAD || 0 }
+  open: { id: process.env.GROUP_ID || '-1005846624298', link: process.env.GROUP_LINK || 'https://t.me/+-h81Nt0KHR01NjZi', thread: +process.env.GROUP_THREAD || 0 },
+  pro: { id: process.env.PRO_ID || '-1006045569304', link: process.env.PRO_LINK || 'https://t.me/+nwI91ban-4E1YWEy', thread: +process.env.PRO_THREAD || 0 }
 };
 // Пока нет оплаты: true — в PRO-чат пускаем всех по заявке (тестовый период).
 const PRO_OPEN = process.env.PRO_OPEN !== '0';
