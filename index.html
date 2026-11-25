@@ -296,6 +296,7 @@ input,select{font:inherit;font-size:16px;width:100%;min-height:50px;border-radiu
   <div class="list" id="dataList"></div>
   <div class="sec">Другое</div>
   <div class="list" style="overflow:visible;position:relative">
+   <button class="li" id="support"><span class="ic">💬</span><span class="sp">Поддержка</span><span class="v">чат</span></button>
    <button class="li" id="newsCh"><span class="ic">📢</span><span class="sp">Канал новостей Тренер 24</span><span class="v">канал</span></button>
    <button class="li" id="commPro"><span class="ic">⭐</span><span class="sp">PRO-чат с тренером</span><span class="v">PRO</span></button>
    <button class="li" id="invite"><span class="ic">🎁</span><span class="sp">Пригласить друга</span><span class="v"></span></button>
@@ -1141,17 +1142,29 @@ const favs=()=>{const m=new Map();Object.keys(LOG).sort((a,b)=>pk(b)-pk(a)).forE
 function guessText(t){const l=t.toLowerCase(),base=DEMO.find(d=>l.includes(d.n.split(' ')[0].toLowerCase()));
  return base?{...base}:{n:t.charAt(0).toUpperCase()+t.slice(1),g:250,k:380,p:18,f:14,c:42}}
 function analyzing(img){openSheet(head('Распознаю блюдо…','ИИ смотрит на тарелку')+(img?`<img class="photo" src="${img}" alt="Фото еды">`:'')+'<div class="scan"></div>')}
-function aiFail(er){closeSheet();toast(String(er.message||'ИИ недоступен').slice(0,40))}
-function result(r,img){const base={...r};
- openSheet(head(esc(r.n),'Добавить в '+target)+(img?`<img class="photo" src="${img}" alt="">`:'')+`
- <div class="card" style="margin:12px 0;padding:14px"><div class="row"><span class="big" id="rk"></span><span style="color:var(--mute);font-weight:700">ккал</span></div><div class="macros" id="rm" style="margin-top:12px;padding-top:12px"></div></div>
- <div class="g2"><div><label for="portion">Порция, г</label><input id="portion" type="number" inputmode="numeric" value="${r.g}"></div><div><label for="rmeal">Приём пищи</label><select id="rmeal">${MEALS.map(([m])=>`<option ${m===target?'selected':''}>${m}</option>`).join('')}</select></div></div>
- <button class="btn" id="addR" style="margin-top:16px">Добавить в дневник</button>${LIVE?'<p class="note">Оценка ИИ — поправь вес порции, если нужно</p>':'<p class="note">Демо: в рабочей версии здесь будет ответ ИИ по фото</p>'}`);
- const upd=()=>{const q=(+$('#portion').value||0)/base.g;['k','p','f','c'].forEach(x=>r[x]=Math.round(base[x]*q));$('#rk').textContent=fmt(r.k);
+function aiFail(er){const m=String(er&&er.message||'');openSheet(head('Не получилось распознать','Попробуй ещё раз')+`<p style="font-weight:600;line-height:1.5">${esc(/еды|фото/i.test(m)?m:'ИИ сейчас не ответил. Проверь интернет и попробуй ещё раз.')}</p><p class="note" style="text-align:left">Совет: фотографируй сверху, при хорошем свете, чтобы вся тарелка была в кадре.</p><button class="btn" data-act="cam">Сфотографировать ещё раз</button><button class="btn alt" data-act="txt" style="margin-top:8px">Описать словами</button><button class="btn alt" data-act="prod" style="margin-top:8px">Собрать из продуктов</button>`)}
+let LASTIMG='',LASTTXT='';
+function result(r,img){const base={...r},it=(r.items||[]).map(x=>({...x})),one=!it.length;
+ openSheet(head(esc(r.n),'Добавить в '+target)+(img?`<img class="photo" src="${img}" alt="">`:'')+
+ (r.ask||r.conf==='low'?`<div class="warn" style="margin-top:12px">🤔 ${esc(r.ask||'ИИ не до конца уверен — проверь состав и вес')}</div>`:'')+`
+ <div class="card" style="margin:12px 0;padding:14px"><div class="row"><span class="big" id="rk"></span><span style="color:var(--mute);font-weight:700">ккал</span><span class="sp"></span><span style="color:var(--mute);font-weight:700" id="rg"></span></div><div class="macros" id="rm" style="margin-top:12px;padding-top:12px"></div></div>
+ ${one?`<div class="g2"><div><label for="portion">Порция, г</label><input id="portion" type="number" inputmode="numeric" value="${r.g}"></div><div><label for="rmeal">Приём пищи</label><select id="rmeal">${MEALS.map(([m])=>`<option ${m===target?'selected':''}>${m}</option>`).join('')}</select></div></div>`
+ :`<div class="grp" style="margin-top:4px">Что на тарелке · поправь граммы, если нужно</div><div id="ritems"></div><div style="margin-top:8px"><label for="rmeal">Приём пищи</label><select id="rmeal">${MEALS.map(([m])=>`<option ${m===target?'selected':''}>${m}</option>`).join('')}</select></div>`}
+ <button class="btn" id="addR" style="margin-top:16px">Добавить в дневник</button>
+ ${LIVE?`<div class="card" style="margin-top:12px;padding:12px"><label for="hintIn">Не то блюдо или продукт? Напиши, что на ${img?'фото':'самом деле'}</label><div class="row" style="gap:8px;margin-top:6px"><input id="hintIn" placeholder="Например: гречка с куриной котлетой" class="sp"><button class="btn" id="hintGo" style="width:auto;min-height:48px;padding:0 16px;flex:none">Пересчитать</button></div></div><p class="note">Оценка ИИ — проверь вес. Самое точное — взвесить порцию.</p>`:'<p class="note">Демо: в рабочей версии здесь будет ответ ИИ по фото</p>'}`);
+ const tot=()=>{if(one){const q=(+$('#portion').value||0)/base.g;['k','p','f','c'].forEach(x=>r[x]=Math.round(base[x]*q));r.g=+$('#portion').value||0}
+  else{['k','p','f','c'].forEach(x=>r[x]=Math.round(it.reduce((a,y)=>a+y[x+'100']*y.g/100,0)));r.g=it.reduce((a,y)=>a+y.g,0)}
+  $('#rk').textContent=fmt(r.k);$('#rg').textContent=fmt(r.g)+' г';
   $('#rm').innerHTML=[['Б',r.p,'var(--pro)'],['Ж',r.f,'var(--fat)'],['У',r.c,'var(--carb)']].map(([l,v,c])=>`<div class="mac"><span class="lt" style="background:${c}">${l}</span><b>${v} г</b></div>`).join('')};
- upd();$('#portion').oninput=upd;$('#addR').onclick=()=>{day(selF).m[$('#rmeal').value].push({n:r.n,k:r.k,p:r.p,f:r.f,c:r.c,g:+$('#portion').value||r.g,img:img||''});closeSheet();if(view!=='food')go('food');else render();haptic('medium');toast('Добавлено: '+r.k+' ккал')}}
+ const rows=()=>{$('#ritems').innerHTML=it.map((y,j)=>`<div class="plate"><span><b>${esc(y.n)}</b><small>на 100 г: ${y.k100} ккал · Б ${y.p100} · Ж ${y.f100} · У ${y.c100}</small></span><input type="number" inputmode="numeric" min="0" data-ri="${j}" value="${y.g}" aria-label="Граммы: ${esc(y.n)}"><span class="num kc">${Math.round(y.k100*y.g/100)}</span><button class="x" data-rri="${j}" aria-label="Убрать">✕</button></div>`).join('')||'<p class="note">Все продукты убраны</p>';tot()};
+ if(one){$('#portion').oninput=tot;tot()}else{rows();
+  $('#ritems').oninput=e=>{const j=e.target.dataset.ri;if(j==null)return;it[+j].g=Math.max(0,Math.min(5000,+e.target.value||0));e.target.closest('.plate').querySelector('.kc').textContent=Math.round(it[+j].k100*it[+j].g/100);tot()};
+  $('#ritems').onclick=e=>{const b=e.target.closest('[data-rri]');if(!b)return;it.splice(+b.dataset.rri,1);rows()}}
+ if($('#hintGo'))$('#hintGo').onclick=()=>{const h=$('#hintIn').value.trim();if(!h){$('#hintIn').focus();return}analyzing(img);
+  (img&&LASTIMG?ai({type:'photo',image:LASTIMG,hint:h}):ai({type:'text',text:(LASTTXT?LASTTXT+'. Уточнение: ':'')+h})).then(x=>result(x,img)).catch(er=>aiFail(er))};
+ $('#addR').onclick=()=>{if(!r.k&&!r.g){toast('Укажи вес');return}day(selF).m[$('#rmeal').value].push({n:r.n,k:r.k,p:r.p,f:r.f,c:r.c,g:r.g,...(one?{}:{items:it.filter(y=>y.g>0).map(y=>({n:y.n,g:y.g}))}),img:img||''});closeSheet();if(view!=='food')go('food');else render();haptic('medium');toast('Добавлено: '+r.k+' ккал')}}
 function onFile(e){const f=e.target.files[0];e.target.value='';if(!f)return;const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),s=Math.min(1,160/Math.max(im.width,im.height));c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);let u='';try{u=c.toDataURL('image/jpeg',.7)}catch(x){u=''}
- analyzing(u);if(LIVE){const c2=document.createElement('canvas'),s2=Math.min(1,768/Math.max(im.width,im.height));c2.width=im.width*s2;c2.height=im.height*s2;c2.getContext('2d').drawImage(im,0,0,c2.width,c2.height);ai({type:'photo',image:c2.toDataURL('image/jpeg',.8)}).then(r=>result(r,u)).catch(er=>aiFail(er))}else setTimeout(()=>result({...DEMO[Math.floor(Math.random()*DEMO.length)]},u),1700)};im.src=rd.result};rd.readAsDataURL(f)}
+ analyzing(u);if(LIVE){const c2=document.createElement('canvas'),s2=Math.min(1,1024/Math.max(im.width,im.height));c2.width=im.width*s2;c2.height=im.height*s2;c2.getContext('2d').drawImage(im,0,0,c2.width,c2.height);LASTIMG=c2.toDataURL('image/jpeg',.85);ai({type:'photo',image:LASTIMG}).then(r=>result(r,u)).catch(er=>aiFail(er))}else setTimeout(()=>result({...DEMO[Math.floor(Math.random()*DEMO.length)]},u),1700)};im.src=rd.result};rd.readAsDataURL(f)}
 $('#file').onchange=onFile;$('#cam').onchange=onFile;
 
 /* ---------- timer ---------- */
@@ -1213,7 +1226,7 @@ function machineResult(r,u){if(!r||r.error||!Array.isArray(r.ex)||!r.ex.length){
   return`<div class="why"><b style="font-size:14px">${esc(String(x.n||'Упражнение').slice(0,60))}</b>${x.mu?`<div class="muscles" style="margin:8px 0 0">${String(x.mu).split(',').slice(0,4).map(z=>`<span>${esc(z.trim())}</span>`).join('')}</div>`:''}
   ${risky?`<div class="warn" style="margin-top:10px">С твоими ограничениями по здоровью это упражнение лучше не делать без согласования с врачом.</div>`:''}
   ${mList('Настройка',x.setup)}${mList('Как делать',x.steps)}${mList('Частые ошибки',x.mistakes)}
-  ${x.sets?`<p class="exwhy"><b>Для тебя:</b> ${esc(String(x.sets).slice(0,90))}</p>`:''}${m?`<button class="btn alt" data-tip="${esc(m)}" style="margin-top:10px">▶ Анимация техники</button>`:''}</div>`}).join('')+
+  ${x.sets?`<p class="exwhy"><b>Для тебя:</b> ${esc(String(x.sets).slice(0,90))}</p>`:''}${m?`<button class="btn" data-tip="${esc(m)}" style="margin-top:10px">▶ Анимация: как делать правильно</button>`:''}<button class="btn alt" data-yt="${esc(String(x.video||('техника '+(x.n||'')+' '+(r.machine||''))).slice(0,120))}" style="margin-top:8px">🎬 Видео-инструкция</button></div>`}).join('')+
  (r.safety?`<div class="warn">${esc(String(r.safety).slice(0,300))}</div>`:'')+`<p class="note">ИИ может ошибаться. Если сомневаешься — уточни у тренера зала.</p><button class="btn" data-close style="margin-top:8px">Понятно</button>`)}
 $('#mach').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),k=Math.min(1,1024/Math.max(im.width,im.height));c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);let u='';try{u=c.toDataURL('image/jpeg',.82)}catch(x){}
  openSheet(head('Определяю тренажёр…','ИИ-тренер смотрит на фото')+(u?`<img class="photo" src="${u}" alt="">`:'')+'<div class="scan"></div><p class="note">Обычно 5–15 секунд</p>');
@@ -1293,7 +1306,7 @@ document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)r
  if(d.act){const a=d.act;if(a==='cam')$('#cam').click();if(a==='gal')$('#file').click();
   if(a==='fav'){const F=favs();openSheet(head('Недавние блюда','Добавить в '+target)+(F.length?F.map((f,i)=>`<button class="dish" data-fav="${i}" style="width:100%;text-align:left"><span class="ph">${f.img?`<img src="${f.img}" alt="">`:'⭐'}</span><div class="sp"><div class="nm">${esc(f.n)}</div><small>${f.g?f.g+' г · ':''}Б ${f.p} · Ж ${f.f} · У ${f.c}</small></div><span class="num">${f.k}</span></button>`).join(''):'<p style="font-weight:600;color:var(--mute)">Здесь появятся блюда, которые ты уже добавлял — чтобы вносить их в один тап.</p>'))}
   if(a==='txt'){openSheet(head('Опиши, что съел','Добавить в '+target)+`<input id="tx" placeholder="Например: тарелка плова и чай с сахаром"><button class="btn" id="txGo" style="margin-top:14px">Посчитать</button>`);$('#tx').focus();
-   $('#txGo').onclick=()=>{const v=$('#tx').value.trim();if(!v){$('#tx').focus();return}analyzing('');if(LIVE)ai({type:'text',text:v}).then(r=>result(r,'')).catch(er=>aiFail(er));else setTimeout(()=>result(guessText(v),''),1100)}}
+   $('#txGo').onclick=()=>{const v=$('#tx').value.trim();if(!v){$('#tx').focus();return}analyzing('');LASTIMG='';LASTTXT=v;if(LIVE)ai({type:'text',text:v}).then(r=>result(r,'')).catch(er=>aiFail(er));else setTimeout(()=>result(guessText(v),''),1100)}}
   if(a==='prod')builder(target);
   if(a==='train'){closeSheet();selT=wd(today);go('train')}}
  if(d.fav!==undefined){const f=favs()[+d.fav];if(f)result({n:f.n,g:f.g||100,k:f.k,p:f.p,f:f.f,c:f.c},f.img||'')}
@@ -1328,6 +1341,10 @@ document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)r
   if(t.id==='wsGo'){const v=+String($('#wsIn').value).replace(',','.');if(v>=0){setW(day(selF),v<20?v*1000:v);closeSheet();render()}}
   if(t.id==='gSub'){try{tg.openTelegramLink(NEWS_LINK)}catch(x){location.href=NEWS_LINK}}
   if(t.id==='gChk')subGate(true,true);
+  if(d.yt){const u='https://www.youtube.com/results?search_query='+encodeURIComponent(d.yt);try{tg.openLink(u)}catch(x){window.open(u,'_blank')}}
+  if(t.id==='support')openSheet(head('Поддержка','Мы на связи')+`<div class="list"><button class="li" id="supW"><span class="ic">✉️</span><span class="sp">Написать в поддержку<small class="hl">Живой человек · ответ придёт в чат с ботом</small></span>›</button><button class="li" id="supAI"><span class="ic">🤖</span><span class="sp">Спросить ИИ-тренера<small class="hl">Тренировки и питание · ответ сразу</small></span>›</button></div>`);
+  if(t.id==='supW'){const u='https://t.me/trener24sportlivebot?start=support';try{tg.openTelegramLink(u)}catch(x){location.href=u}}
+  if(t.id==='supAI'){closeSheet();coach()}
   if(t.id==='newsCh'){try{tg.openTelegramLink(NEWS_LINK)}catch(x){location.href=NEWS_LINK}}
  if(d.edit)edit(d.edit);
  if(t.id==='updW')edit('w');
