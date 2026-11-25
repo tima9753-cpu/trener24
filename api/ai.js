@@ -16,12 +16,12 @@ function checkInitData(initData, token) {
   try { return JSON.parse(p.get('user') || '{}'); } catch (e) { return {}; }
 }
 
-async function openai(messages, json, maxTokens, temp) {
+async function openai(messages, json, maxTokens, temp, model) {
   const r = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + process.env.OPENAI_API_KEY },
     body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      model: model || process.env.OPENAI_MODEL || 'gpt-4o-mini',
       messages,
       temperature: temp == null ? 0.3 : temp,
       max_tokens: maxTokens || 600,
@@ -33,6 +33,8 @@ async function openai(messages, json, maxTokens, temp) {
   return j.choices[0].message.content;
 }
 
+// Фото еды и тренажёров разбирает более сильная модель: mini часто путает блюда.
+const VISION = process.env.VISION_MODEL || 'gpt-4o';
 const num = v => Math.round(+v || 0);
 // Короткое описание пользователя для промптов (без лишних токенов)
 const who = P => `Пол ${P.sex === 'f' ? 'женский' : 'мужской'}, ${num(P.age)} лет, рост ${num(P.h)} см, вес ${P.w} кг, желаемый ${P.goalW} кг, ` +
@@ -62,22 +64,59 @@ const MACH_RULES = 'Ты — опытный тренер тренажёрног�
   'Дай 1–2 основных упражнения для этого тренажёра. Настройку объясняй конкретно: высота сиденья, положение валиков и спинки, ось вращения, хват, стартовый вес. ' +
   'Подходы и повторы подбери под цель, уровень и ограничения здоровья человека. Если упражнение опасно при его ограничениях — скажи об этом в safety. ' +
   'Если на фото нет тренажёра или снаряда, ответь {"error":"На фото не видно тренажёра — сфотографируй его целиком"}. ' +
+  'Сначала внимательно рассмотри конструкцию: где сиденье, валики, рукояти, трос и блоки, стек плит или диски, куда направлено движение. Не путай похожие тренажёры ' +
+  '(разгибание и сгибание ног, жим ногами и гакк-машина, верхний и нижний блок, бабочка и обратная бабочка). ' +
+  'В поле match выбери из списка приложения упражнение, которое выполняется именно на этом тренажёре, и скопируй название символ в символ; если в списке такого нет — пустая строка. ' +
   'Ответь строго JSON: {"machine":"название тренажёра по-русски","ex":[{"n":"название упражнения","match":"точное название из списка приложения или пустая строка","mu":"мышцы через запятую",' +
-  '"setup":["2–4 пункта настройки"],"steps":["3–5 коротких шагов"],"mistakes":["2–3 частые ошибки"],"sets":"подходы × повторы и как подобрать вес"}],"safety":"предупреждение или пустая строка"}.';
+  '"setup":["2–4 пункта настройки"],"steps":["3–5 коротких шагов"],"mistakes":["2–3 частые ошибки"],"sets":"подходы × повторы и как подобрать вес",' +
+  '"video":"поисковый запрос для YouTube на русском, например: техника разгибание ног в тренажёре"}],"safety":"предупреждение или пустая строка"}.';
 
-const FOOD_PROMPT = 'Ты опытный нутрициолог. Определи блюдо и реалистично оцени вес порции: ориентируйся на размер тарелки, столовых приборов и рук. ' +
-  'Учитывай скрытые калории: масло при жарке, соусы, сахар в напитках. Если продуктов несколько, посчитай сумму по всей тарелке и перечисли их в названии через запятую. ' +
-  'Ответь строго JSON по образцу: ' +
-  '{"n":"Плов с говядиной","g":300,"k":560,"p":22,"f":21,"c":70}, где n — название по-русски, g — вес всей порции в граммах, ' +
-  'k — калории всей порции, p — белки, f — жиры, c — углеводы в граммах на всю порцию. Значения g,k,p,f,c — только целые числа без единиц измерения. ' +
-  'Если на фото нет еды, ответь {"error":"На фото не видно еды"}.';
+const FOOD_PROMPT = 'Ты опытный нутрициолог и знаешь русскую, кавказскую, среднеазиатскую и европейскую кухню. Задача — точно определить еду и её калорийность. ' +
+  'Порядок работы: 1) внимательно рассмотри фото и назови каждый отдельный продукт или блюдо на тарелке (гарнир, мясо, соус, хлеб, напиток — отдельно); ' +
+  '2) оцени вес каждого по размеру тарелки (обычная тарелка 24–26 см), приборов, рук и упаковки; 3) для каждого дай калорийность и БЖУ на 100 г для готового продукта ' +
+  'с учётом способа приготовления (жареное — с маслом, салат — с заправкой, напиток — с сахаром, если видно). ' +
+  'Если видна упаковка или этикетка — бери значения с неё. Если человек уточнил, что на фото, — доверяй его уточнению. ' +
+  'Даже если не уверен, дай лучшую догадку и в поле ask напиши короткий вопрос, что уточнить; ошибку возвращай, только если еды на фото точно нет. ' +
+  'Ответь строго JSON: {"n":"короткое название всей еды по-русски","items":[{"n":"продукт","g":150,"k100":110,"p100":4,"f100":1,"c100":21}],"conf":"high|mid|low","ask":"вопрос или пустая строка"}. ' +
+  'g — граммы продукта в порции, k100/p100/f100/c100 — ккал, белки, жиры, углеводы на 100 г. Только числа. ' +
+  'Если на фото нет еды, ответь {"error":"На фото не видно еды — сфотографируй тарелку сверху"}.';
 
 function cleanFood(o) {
   if (o.error) return { error: String(o.error).slice(0, 120) };
-  const n = x => { const m = String(x == null ? '' : x).replace(',', '.').match(/\d+(\.\d+)?/); return m ? Math.round(parseFloat(m[0])) : 0; };
+  const n = x => { const m = String(x == null ? '' : x).replace(',', '.').match(/\d+(\.\d+)?/); return m ? parseFloat(m[0]) : 0; };
   const v = (...ks) => { for (const k of ks) if (o[k] != null) return o[k]; return 0; };
-  return { n: String(o.n || o.name || 'Блюдо').slice(0, 80), g: n(v('g', 'weight', 'grams')) || 250, k: n(v('k', 'kcal', 'calories')),
-    p: n(v('p', 'protein', 'proteins')), f: n(v('f', 'fat', 'fats')), c: n(v('c', 'carbs', 'carbohydrates')) };
+  const items = (Array.isArray(o.items) ? o.items : []).slice(0, 10).map(x => ({
+    n: String(x.n || x.name || 'Продукт').slice(0, 50), g: Math.round(n(x.g)) || 100,
+    k100: Math.round(n(x.k100)), p100: Math.round(n(x.p100) * 10) / 10, f100: Math.round(n(x.f100) * 10) / 10, c100: Math.round(n(x.c100) * 10) / 10
+  })).filter(x => x.g > 0 && (x.k100 > 0 || x.p100 + x.f100 + x.c100 > 0));
+  items.forEach(x => { if (!x.k100) x.k100 = Math.round(x.p100 * 4 + x.f100 * 9 + x.c100 * 4); });
+  const meta = { conf: ['high', 'mid', 'low'].includes(o.conf) ? o.conf : 'mid', ask: String(o.ask || '').slice(0, 140) };
+  if (items.length) {
+    const t = k => Math.round(items.reduce((a, x) => a + x[k + '100'] * x.g / 100, 0));
+    return { n: String(o.n || items.map(x => x.n).join(', ')).slice(0, 80), g: items.reduce((a, x) => a + x.g, 0), k: t('k'), p: t('p'), f: t('f'), c: t('c'), items, ...meta };
+  }
+  return { n: String(o.n || o.name || 'Блюдо').slice(0, 80), g: Math.round(n(v('g', 'weight', 'grams'))) || 250, k: Math.round(n(v('k', 'kcal', 'calories'))),
+    p: Math.round(n(v('p', 'protein'))), f: Math.round(n(v('f', 'fat'))), c: Math.round(n(v('c', 'carbs'))), ...meta };
+}
+// Сопоставляем ответ ИИ со списком упражнений приложения, даже если название записано чуть иначе.
+const normEx = t => String(t || '').toLowerCase().replace(/ё/g, 'е').replace(/[^а-яa-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+function matchEx(name, allowed) {
+  const a = normEx(name);
+  if (!a) return '';
+  const exact = allowed.find(x => normEx(x) === a);
+  if (exact) return exact;
+  const st = w => w.slice(0, Math.max(4, w.length - 2));
+  const aw = a.split(' ').filter(w => w.length > 2).map(st);
+  const OPP = [['верхн', 'нижн', 'горизонт', 'к поясу'], ['сид', 'леж', 'стоя'], ['сгиб', 'разгиб'], ['узк', 'широк'], ['ног', 'рук']];
+  const clash = x => OPP.some(g => { const p = g.filter(w => a.includes(w)), q = g.filter(w => normEx(x).includes(w)); return p.length && q.length && !p.some(w => q.includes(w)); });
+  let best = '', bs = 0;
+  for (const x of allowed) {
+    if (clash(x)) continue;
+    const xw = normEx(x).split(' ').filter(w => w.length > 2).map(st);
+    const common = aw.filter(w => xw.includes(w)).length, sc = common / Math.max(aw.length, xw.length);
+    if (sc > bs) { bs = sc; best = x; }
+  }
+  return bs >= 0.66 ? best : '';
 }
 
 module.exports = async (req, res) => {
@@ -100,14 +139,14 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: 'Нет фото' });
       const out = await openai([
         { role: 'system', content: FOOD_PROMPT },
-        { role: 'user', content: [{ type: 'text', text: 'Что на тарелке?' }, { type: 'image_url', image_url: { url: b.image, detail: 'high' } }] }
-      ], true, 400);
+        { role: 'user', content: [{ type: 'text', text: 'Что на фото и сколько это калорий?' + (b.hint ? ' Уточнение от человека: ' + String(b.hint).slice(0, 200) : '') }, { type: 'image_url', image_url: { url: b.image, detail: 'high' } }] }
+      ], true, 700, 0.2, VISION);
       return res.json(cleanFood(JSON.parse(out)));
     }
     if (b.type === 'text') {
       const t = String(b.text || '').slice(0, 300);
       if (!t) return res.status(400).json({ error: 'Пустое описание' });
-      const out = await openai([{ role: 'system', content: FOOD_PROMPT }, { role: 'user', content: 'Я съел: ' + t }], true, 300);
+      const out = await openai([{ role: 'system', content: FOOD_PROMPT }, { role: 'user', content: 'Я съел: ' + t }], true, 600, 0.2);
       return res.json(cleanFood(JSON.parse(out)));
     }
     if (b.type === 'machine') {
@@ -117,8 +156,10 @@ module.exports = async (req, res) => {
       const out = await openai([
         { role: 'system', content: MACH_RULES + ' Список упражнений приложения: ' + allowed.join('; ') + '.' },
         { role: 'user', content: [{ type: 'text', text: 'Данные человека: ' + who(b.profile || {}) + 'Что это за тренажёр и как на нём заниматься?' }, { type: 'image_url', image_url: { url: b.image, detail: 'high' } }] }
-      ], true, 1200, 0.3);
-      return res.json(JSON.parse(out));
+      ], true, 1500, 0.2, VISION);
+      const r = JSON.parse(out);
+      if (Array.isArray(r.ex)) r.ex.forEach(x => { x.match = allowed.includes(x.match) ? x.match : matchEx(x.match, allowed) || matchEx(x.n, allowed); });
+      return res.json(r);
     }
     if (b.type === 'program') {
       const P = b.profile || {};
