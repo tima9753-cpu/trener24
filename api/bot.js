@@ -11,6 +11,7 @@ const secretOf = t => crypto.createHash('sha256').update('t24' + t).digest('hex'
 const COMMUNITY = {
   open: { id: process.env.GROUP_ID || '-1005846624298', link: process.env.GROUP_LINK || 'https://t.me/+-h81Nt0KHR01NjZi', thread: +process.env.GROUP_THREAD || 0 },
   news: { id: process.env.NEWS_ID || '-1005811785963', link: process.env.NEWS_LINK || 'https://t.me/+rcig49zSCe44YjUy', thread: 0 },
+  support: { id: process.env.SUPPORT_ID || '-5277222877', link: '', thread: 0 },
   pro: { id: process.env.PRO_ID || '-1006045569304', link: process.env.PRO_LINK || 'https://t.me/+nwI91ban-4E1YWEy', thread: +process.env.PRO_THREAD || 0 }
 };
 // Пока нет оплаты: true — в PRO-чат пускаем всех по заявке (тестовый период).
@@ -24,7 +25,7 @@ async function tg(method, body) {
   return r.json();
 }
 const esc = s => String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-const kindOf = id => (String(id) === String(COMMUNITY.open.id) ? 'open' : String(id) === String(COMMUNITY.pro.id) ? 'pro' : '');
+const kindOf = id => (String(id) === String(COMMUNITY.open.id) ? 'open' : String(id) === String(COMMUNITY.pro.id) ? 'pro' : String(id) === String(COMMUNITY.support.id) ? 'support' : '');
 const botBtn = (text, start) => ({ text, url: `https://t.me/${BOT}?start=${start || 'group'}` });
 
 async function ai(system, user, maxTokens, json) {
@@ -104,6 +105,7 @@ async function onGroup(m) {
     return tg('sendMessage', { chat_id: chat, ...thread, text: `id этой группы: ${chat}${m.message_thread_id ? `\nid этой темы: ${m.message_thread_id}` : ''}` });
   }
   if (!kind) return; // бот в чужой группе — молчим
+  if (kind === 'support') return onSupportReply(m);
   if (m.new_chat_members || m.left_chat_member) {
     await tg('deleteMessage', { chat_id: chat, message_id: m.message_id });
     if (m.new_chat_members) {
@@ -129,6 +131,29 @@ async function onGroup(m) {
   return tg('sendMessage', { chat_id: chat, ...thread, reply_to_message_id: m.message_id, text: a || 'Сейчас не получилось ответить — попробуй чуть позже 🙏' });
 }
 
+/* ---------- поддержка: клиент пишет боту → сообщение в группу поддержки → ответ реплаем уходит клиенту ---------- */
+const SUP_ON = () => /^-?\d+$/.test(String(COMMUNITY.support.id));
+async function toSupport(m) {
+  const f = m.from || {}, head = `🆘 ${esc(f.first_name || '')} ${esc(f.last_name || '')}${f.username ? ' @' + esc(f.username) : ''} · id:${f.id}`;
+  const note = '\n\n<i>Ответь реплаем на это сообщение — ответ уйдёт клиенту</i>';
+  const sid = COMMUNITY.support.id;
+  let r;
+  if (m.text) r = await tg('sendMessage', { chat_id: sid, parse_mode: 'HTML', text: `${head}\n\n${esc(m.text).slice(0, 3500)}${note}` });
+  else r = await tg('copyMessage', { chat_id: sid, from_chat_id: m.chat.id, message_id: m.message_id, parse_mode: 'HTML', caption: `${head}${m.caption ? '\n\n' + esc(m.caption).slice(0, 800) : ''}${note}` });
+  return tg('sendMessage', { chat_id: m.chat.id, text: r && r.ok ? '✅ Передал в поддержку. Ответ придёт сюда, обычно в течение дня. Можешь дописать подробности или прислать скриншот.' : 'Не получилось отправить в поддержку — попробуй через пару минут 🙏' });
+}
+async function onSupportReply(m) {
+  const rt = m.reply_to_message;
+  if (!rt || !rt.from || rt.from.username !== BOT) return;
+  const id = ((rt.text || rt.caption || '').match(/id:(\d+)/) || [])[1];
+  if (!id) return;
+  let r;
+  if (m.text) r = await tg('sendMessage', { chat_id: id, text: '💬 Поддержка Тренер 24:\n\n' + m.text.slice(0, 3800) });
+  else r = await tg('copyMessage', { chat_id: id, from_chat_id: m.chat.id, message_id: m.message_id });
+  if (r && r.ok) return tg('setMessageReaction', { chat_id: m.chat.id, message_id: m.message_id, reaction: [{ type: 'emoji', emoji: '👍' }] });
+  return tg('sendMessage', { chat_id: m.chat.id, reply_to_message_id: m.message_id, text: 'Не доставлено: ' + (r && r.description || 'ошибка') });
+}
+
 async function onJoinRequest(j) {
   if (kindOf(j.chat.id) !== 'pro') return;
   if (PRO_OPEN) {
@@ -146,7 +171,12 @@ async function onPrivate(m, app) {
   if (COMMUNITY.news.link) comm.push({ text: '📢 Канал новостей', url: COMMUNITY.news.link });
   if (COMMUNITY.pro.link) comm.push({ text: '⭐ PRO-чат', url: COMMUNITY.pro.link });
   if (comm.length) rows.push(comm);
-  if (/^\/(chat|community)/.test(m.text || '')) {
+  const txt = m.text || '';
+  if (/^\/(start support|support)/.test(txt)) {
+    return tg('sendMessage', { chat_id: m.chat.id, text: '💬 Поддержка Тренер 24\n\nНапиши свой вопрос одним сообщением — можно с фото или скриншотом. Я передам его команде, ответ придёт сюда же.' });
+  }
+  if (SUP_ON() && !txt.startsWith('/')) return toSupport(m);
+  if (/^\/(chat|community)/.test(txt)) {
     return tg('sendMessage', { chat_id: m.chat.id, text: comm.length ? 'Канал «Тренер 24»: тренировка дня, челленджи и новости приложения 💪' : 'Сообщество скоро откроется — следи за новостями!', reply_markup: { inline_keyboard: rows.slice(1).length ? rows.slice(1) : rows } });
   }
   return tg('sendMessage', {
@@ -176,7 +206,7 @@ module.exports = async (req, res) => {
     if (q.setup === '1') {
       const hook = await tg('setWebhook', { url: `https://${host}/api/bot`, secret_token: secretOf(token), allowed_updates: ['message', 'chat_join_request'] });
       const menu = await tg('setChatMenuButton', { menu_button: { type: 'web_app', text: 'Открыть', web_app: { url: app } } });
-      await tg('setMyCommands', { commands: [{ command: 'start', description: 'Открыть Тренер 24' }, { command: 'chat', description: 'Сообщество Тренер 24' }] });
+      await tg('setMyCommands', { commands: [{ command: 'start', description: 'Открыть Тренер 24' }, { command: 'support', description: 'Написать в поддержку' }, { command: 'chat', description: 'Канал и PRO-чат' }] });
       return res.json({ webhook: hook.ok, menu: menu.ok, app, info: hook.description });
     }
     return res.json({ ok: true });
