@@ -20,5 +20,11 @@
     "api/*.js": {
       "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/bot?cron=1",
+      "schedule": "0 3 * * *"
+    }
+  ]
 }
