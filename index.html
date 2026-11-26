@@ -298,6 +298,7 @@ input,select{font:inherit;font-size:16px;width:100%;min-height:50px;border-radiu
   <div class="list" id="dataList"></div>
   <div class="sec">Другое</div>
   <div class="list" style="overflow:visible;position:relative">
+   <button class="li" id="forgetMe"><span class="ic">🗑</span><span class="sp">Удалить мои данные</span></button>
    <button class="li" id="support"><span class="ic">💬</span><span class="sp">Поддержка</span><span class="v">чат</span></button>
    <button class="li" id="newsCh"><span class="ic">📢</span><span class="sp">Канал новостей Тренер 24</span><span class="v">канал</span></button>
    <button class="li" id="commPro"><span class="ic">⭐</span><span class="sp">PRO-чат с тренером</span><span class="v">PRO</span></button>
@@ -327,9 +328,14 @@ if(tg){try{tg.ready();tg.expand();tg.setHeaderColor&&tg.setHeaderColor('#121115'
 const haptic=t=>{try{tg&&tg.HapticFeedback.impactOccurred(t||'light')}catch(e){}};
 const LIVE=!!(tg&&tg.initData)&&!location.hostname.endsWith('github.io');
 async function ai(p){const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...p,initData:tg.initData})});let j={};try{j=await r.json()}catch(e){}if(!r.ok||j.error)throw new Error(j.error||'Ошибка сервера');return j}
-const load=(k,d)=>{try{const v=localStorage.getItem('t24v3_'+k);return v?JSON.parse(v):d}catch(e){return d}};
-var CSFRESH=(()=>{try{return !localStorage.getItem('t24v3_ts')}catch(e){return true}})(),CSREADY=false;
-const save=(k,v)=>{try{const s=JSON.stringify(v);if(localStorage.getItem('t24v3_'+k)!==s){localStorage.setItem('t24v3_'+k,s);if(typeof csMark==='function')csMark(k)}}catch(e){}};
+// данные на телефоне — отдельно для каждого аккаунта Telegram
+const KP=(()=>{let u='';try{const us=LIVE&&tg.initDataUnsafe&&tg.initDataUnsafe.user;u=us&&us.id?String(us.id):''}catch(e){}if(!u)return 't24v3_';const p='t24v3_u'+u+'_';
+ try{const L=Object.keys(localStorage).filter(k=>k.startsWith('t24v3_')&&!/^t24v3_(u\d+_|owner$)/.test(k));
+  if(L.length&&!localStorage.getItem('t24v3_owner')&&localStorage.getItem(p+'p')==null){L.forEach(k=>{localStorage.setItem(p+k.slice(6),localStorage.getItem(k));localStorage.removeItem(k)});localStorage.setItem('t24v3_owner',u);localStorage.setItem(p+'claimed','1')}
+  else if(L.length&&localStorage.getItem('t24v3_owner'))L.forEach(k=>localStorage.removeItem(k))}catch(e){}return p})();
+const load=(k,d)=>{try{const v=localStorage.getItem(KP+k);return v?JSON.parse(v):d}catch(e){return d}};
+var CSFRESH=(()=>{try{return !localStorage.getItem(KP+'ts')}catch(e){return true}})(),CSREADY=false;
+const save=(k,v)=>{try{const s=JSON.stringify(v);if(localStorage.getItem(KP+k)!==s){localStorage.setItem(KP+k,s);if(typeof csMark==='function')csMark(k)}}catch(e){}};
 const icon=(id,cls)=>`<svg${cls?` class="${cls}"`:''}><use href="#${id}"/></svg>`;
 const fmt=n=>Math.round(n).toLocaleString('ru-RU');
 const key=d=>d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
@@ -342,7 +348,7 @@ const MEALS=[['Завтрак','08:00–11:00','🥣'],['Обед','12:00–16:0
 
 /* ---------- data ---------- */
 let P=load('p',null);
-const FIRST=!P;
+const FIRST=!P||!P.agree; // анкета не пройдена — человек новый
 if(!P)P={sex:'m',age:29,h:178,w:80,goalW:75,act:'1.375',goal:'cut',place:'home',health:''};
 P={level:'beg',days:3,equip:[],flags:[],agree:0,remind:'19:00',custom:null,...P};
 if(!P.start){P.start=key(today);P.startW=+P.w}
@@ -1176,9 +1182,10 @@ try{CS=tg&&tg.CloudStorage&&tg.isVersionAtLeast&&tg.isVersionAtLeast('6.9')&&LIV
 TS=load('ts',{});
 const SYNCK=['p','log','wh','done','ws','wl','prd','mp','bm','chk','inv','prem'];
 const csCall=(m,...a)=>new Promise(r=>{try{CS[m](...a,(e,v)=>r(e?null:v))}catch(x){r(null)}});
-function csMark(k){if(!CS||!TS||!SYNCK.includes(k))return;if(!CSREADY){csQ.add(k);return}TS[k]=Date.now();try{localStorage.setItem('t24v3_ts',JSON.stringify(TS))}catch(e){}csQ.add(k);clearTimeout(csT);csT=setTimeout(csFlush,2500)}
-function csPack(k){let v=localStorage.getItem('t24v3_'+k)||'null';if(k==='log'){try{const o=JSON.parse(v)||{};for(const d in o)for(const m in (o[d].m||{}))o[d].m[m]=o[d].m[m].map(x=>x.img?{...x,img:''}:x);v=JSON.stringify(o)}catch(e){}}return v}
-async function csFlush(){if(!CS)return;const ks=[...csQ];csQ.clear();
+function csMark(k){if(!CS||!TS||!SYNCK.includes(k))return;if(!CSREADY){csQ.add(k);return}TS[k]=Date.now();try{localStorage.setItem(KP+'ts',JSON.stringify(TS))}catch(e){}csQ.add(k);clearTimeout(csT);csT=setTimeout(csFlush,2500)}
+function csPack(k){let v=localStorage.getItem(KP+k)||'null';if(k==='log'){try{const o=JSON.parse(v)||{};for(const d in o)for(const m in (o[d].m||{}))o[d].m[m]=o[d].m[m].map(x=>x.img?{...x,img:''}:x);v=JSON.stringify(o)}catch(e){}}return v}
+var FORGOT=false;
+async function csFlush(){if(FORGOT)return;if(!CS)return;if(!(P&&P.agree)){clearTimeout(csT);csT=setTimeout(csFlush,5000);return}const ks=[...csQ];csQ.clear();
  for(const k of ks){const v=csPack(k);if(csLast[k]===v)continue;const ch=[];for(let i=0;i<v.length;i+=3800)ch.push(v.slice(i,i+3800));
   const om=await csCall('getItem','m_'+k),on=+(String(om||'').split('|')[1]||0);let ok=true;
   for(let i=0;i<ch.length;i++){if(await csCall('setItem',`c_${k}_${i}`,ch[i])===null){ok=false;break}}
@@ -1186,14 +1193,14 @@ async function csFlush(){if(!CS)return;const ks=[...csQ];csQ.clear();
   await csCall('setItem','m_'+k,`${TS[k]||Date.now()}|${ch.length}`);if(on>ch.length)await csCall('removeItems',Array.from({length:on-ch.length},(_,i)=>`c_${k}_${ch.length+i}`));csLast[k]=v}
  if(csQ.size){clearTimeout(csT);csT=setTimeout(csFlush,10000)}}
 async function csRestore(){if(!CS)return;const keys=await csCall('getKeys');if(!keys)return;const metas=keys.filter(x=>x.startsWith('m_'));
- const mv=metas.length?await csCall('getItems',metas):{};if(!mv)return;let changed=0;
+ const mv=metas.length?await csCall('getItems',metas):{};if(!mv)return;if(localStorage.getItem(KP+'claimed')){if(!metas.includes('m_p')){try{Object.keys(localStorage).filter(k=>k.startsWith(KP)).forEach(k=>localStorage.removeItem(k));sessionStorage.setItem('t24rl','0')}catch(e){}location.reload();return}localStorage.removeItem(KP+'claimed')}let changed=0;
  for(const mk of metas){const k=mk.slice(2);if(!SYNCK.includes(k))continue;const[t,n]=String(mv[mk]||'').split('|').map(Number);if(!t||!n||(!CSFRESH&&t<=(TS[k]||0)))continue;
   const cks=Array.from({length:n},(_,i)=>`c_${k}_${i}`),cv=await csCall('getItems',cks);if(!cv)continue;const v=cks.map(c=>cv[c]||'').join('');try{JSON.parse(v)}catch(e){continue}
-  if(k==='log'){try{const loc=JSON.parse(localStorage.getItem('t24v3_log')||'null')||{},o=JSON.parse(v)||{};for(const d in o)for(const m in (o[d].m||{}))o[d].m[m].forEach((x,i)=>{const l=(((loc[d]||{}).m||{})[m]||[])[i];if(l&&l.n===x.n&&l.img)x.img=l.img});localStorage.setItem('t24v3_log',JSON.stringify(o))}catch(e){localStorage.setItem('t24v3_log',v)}}
-  else localStorage.setItem('t24v3_'+k,v);TS[k]=t;csLast[k]=v;changed=1}
+  if(k==='log'){try{const loc=JSON.parse(localStorage.getItem(KP+'log')||'null')||{},o=JSON.parse(v)||{};for(const d in o)for(const m in (o[d].m||{}))o[d].m[m].forEach((x,i)=>{const l=(((loc[d]||{}).m||{})[m]||[])[i];if(l&&l.n===x.n&&l.img)x.img=l.img});localStorage.setItem(KP+'log',JSON.stringify(o))}catch(e){localStorage.setItem(KP+'log',v)}}
+  else localStorage.setItem(KP+k,v);TS[k]=t;csLast[k]=v;changed=1}
  CSREADY=true;csQ.clear();
- SYNCK.forEach(k=>{const m=mv['m_'+k],t=m?+String(m).split('|')[0]:0;if(localStorage.getItem('t24v3_'+k)==null)return;if(!t){TS[k]=TS[k]||Date.now();csQ.add(k)}else if(!CSFRESH&&(TS[k]||0)>t)csQ.add(k)});
- try{localStorage.setItem('t24v3_ts',JSON.stringify(TS))}catch(e){}
+ SYNCK.forEach(k=>{const m=mv['m_'+k],t=m?+String(m).split('|')[0]:0;if(localStorage.getItem(KP+k)==null)return;if(!t){TS[k]=TS[k]||Date.now();csQ.add(k)}else if(!CSFRESH&&(TS[k]||0)>t)csQ.add(k)});
+ try{localStorage.setItem(KP+'ts',JSON.stringify(TS))}catch(e){}
  if(csQ.size){clearTimeout(csT);csT=setTimeout(csFlush,1500)}
  if(changed){let n=0;try{n=+sessionStorage.getItem('t24rl')||0}catch(e){}if(n<2){try{sessionStorage.setItem('t24rl',n+1)}catch(e){}location.reload()}}}
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&CS&&csQ.size)csFlush()});
@@ -1388,8 +1395,8 @@ function onboard(s){const dots=`<div class="dots">${Array.from({length:OBN},(_,i
  const opt=(k,arr)=>`<div class="opts">${arr.map(([v,e,l,d])=>`<button class="opt" data-o="${k}|${v}" aria-pressed="${String(P[k])===String(v)}"><span>${e}</span><div>${l}${d?`<small>${d}</small>`:''}</div></button>`).join('')}</div>`;
  let b='';
  if(s===0)b=hd('Какая у тебя цель?')+opt('goal',[['cut','🔥','Похудеть','Сбросить вес и подтянуть тело'],['keep','⚡','Держать форму','Больше энергии и силы'],['bulk','💪','Набрать массу','Мышцы и сила']]);
- if(s===1)b=hd('Расскажи о себе')+`<div class="g2"><div><label for="oS">Пол</label><select id="oS"><option value="m">Мужской</option><option value="f" ${P.sex==='f'?'selected':''}>Женский</option></select></div><div><label for="oA">Возраст</label><input id="oA" type="number" inputmode="numeric" value="${P.age}"></div>
-  <div><label for="oH">Рост, см</label><input id="oH" type="number" inputmode="numeric" value="${P.h}"></div><div><label for="oW">Вес, кг</label><input id="oW" type="number" inputmode="decimal" value="${P.w}"></div></div><label for="oG">Желаемый вес, кг</label><input id="oG" type="number" inputmode="decimal" value="${P.goalW}">`;
+ if(s===1)b=hd('Расскажи о себе')+`<div class="g2"><div><label for="oS">Пол</label><select id="oS">${P.agree?'':'<option value="" selected disabled>Выбери</option>'}<option value="m" ${P.agree&&P.sex==='m'?'selected':''}>Мужской</option><option value="f" ${P.agree&&P.sex==='f'?'selected':''}>Женский</option></select></div><div><label for="oA">Возраст</label><input id="oA" type="number" inputmode="numeric" value="${P.agree?P.age:''}" placeholder="например, 30"></div>
+  <div><label for="oH">Рост, см</label><input id="oH" type="number" inputmode="numeric" value="${P.agree?P.h:''}" placeholder="например, 170"></div><div><label for="oW">Вес, кг</label><input id="oW" type="number" inputmode="decimal" value="${P.agree?P.w:''}" placeholder="например, 75"></div></div><label for="oG">Желаемый вес, кг</label><input id="oG" type="number" inputmode="decimal" value="${P.agree?P.goalW:''}" placeholder="можно оставить пустым">`;
  if(s===2)b=hd('Опыт и время')+`<label>Уровень подготовки</label>`+opt('level',[['beg','🌱','Новичок','Не тренировался или перерыв больше полугода'],['mid','🏃','Средний','Тренируюсь регулярно от 6 месяцев'],['adv','🏆','Опытный','Больше 2 лет регулярных тренировок']])+`<label>Сколько раз в неделю готов тренироваться</label><div class="seg4">${[2,3,4,5].map(n=>`<button class="opt" data-o="days|${n}" aria-pressed="${+P.days===n}">${n}</button>`).join('')}</div>`;
  if(s===3)b=hd('Где будешь тренироваться?')+opt('place',[['gym','🏋️','В зале','Штанга, гантели и тренажёры'],['home','🏠','Дома','Отметь ниже, что у тебя есть']])+`<div id="eqBox" ${P.place==='home'?'':'hidden'}><label>Что есть дома (можно несколько)</label>${eqHtml()}</div>`;
  if(s===4)b=hd('Здоровье и безопасность')+healthHtml();
@@ -1397,7 +1404,7 @@ function onboard(s){const dots=`<div class="dots">${Array.from({length:OBN},(_,i
  const sb=$('#sheetBody');
  sb.querySelectorAll('[data-o]').forEach(x=>x.onclick=()=>{const[k,v]=x.dataset.o.split('|');P[k]=k==='days'?+v:v;if(k==='days')P.act=+v>=4?'1.55':'1.375';sb.querySelectorAll(`[data-o^="${k}|"]`).forEach(y=>y.setAttribute('aria-pressed',y===x));if(k==='place'){const eb=$('#eqBox');if(eb)eb.hidden=v!=='home'}haptic()});
  bindEq();if(s===4){bindHealth();const up=()=>{const L=[...sb.querySelectorAll('.agree input')],ok=L.every(x=>x.checked);$('#obNext').classList.toggle('dim',!ok);if(ok){sb.querySelectorAll('.aerr').forEach(x=>x.remove());sb.querySelectorAll('.agree.err').forEach(x=>x.classList.remove('err'))}};sb.querySelectorAll('.agree input').forEach(x=>x.addEventListener('change',up));up()}if(s)$('#obBack').onclick=()=>onboard(s-1);
- $('#obNext').onclick=()=>{if(s===1){const _a=+$('#oA').value,_h=+$('#oH').value,_w=+String($('#oW').value).replace(',','.'),_g=+String($('#oG').value).replace(',','.');if(!(_a>=14&&_a<=90)){toast('Возраст: от 14 до 90 лет');return}if(!(_h>=120&&_h<=230)){toast('Рост: от 120 до 230 см');return}if(!(_w>=35&&_w<=250)){toast('Вес: от 35 до 250 кг');return}if(_g&&!(_g>=35&&_g<=250)){toast('Желаемый вес: от 35 до 250 кг');return}P.sex=$('#oS').value;P.age=+$('#oA').value||P.age;P.h=+$('#oH').value||P.h;P.w=+String($('#oW').value).replace(',','.')||P.w;P.goalW=+String($('#oG').value).replace(',','.')||P.goalW;const tk=key(today);WH=WH.filter(x=>x.d!==tk);WH.push({d:tk,w:P.w})}
+ $('#obNext').onclick=()=>{if(s===1){if(!$('#oS').value){toast('Выбери пол');return}const _a=+$('#oA').value,_h=+$('#oH').value,_w=+String($('#oW').value).replace(',','.'),_g=+String($('#oG').value).replace(',','.');if(!(_a>=14&&_a<=90)){toast('Возраст: от 14 до 90 лет');return}if(!(_h>=120&&_h<=230)){toast('Рост: от 120 до 230 см');return}if(!(_w>=35&&_w<=250)){toast('Вес: от 35 до 250 кг');return}if(_g&&!(_g>=35&&_g<=250)){toast('Желаемый вес: от 35 до 250 кг');return}P.sex=$('#oS').value;P.age=+$('#oA').value||P.age;P.h=+$('#oH').value||P.h;P.w=+String($('#oW').value).replace(',','.')||P.w;P.goalW=+String($('#oG').value).replace(',','.')||P.w;const tk=key(today);WH=WH.filter(x=>x.d!==tk);WH.push({d:tk,w:P.w})}
   if(s===4&&!readHealth())return;if(s<OBN-1)return onboard(s+1);P.custom=null;P.shift=wd(today);P.start=key(today);P.startW=+P.w;save('p',P);try{finishOB()}catch(e){console.error(e);closeSheet();try{go('train')}catch(_){}toast('План готов — открываю тренировки')}}}
 function finishOB(){const N=norm(),p=plan();openSheet(head('Твой план готов','Персонально под тебя')+`<div class="freebox">${icon('i-fire')}<h2>${fmt(N.k)} ккал</h2><p>в день · белки ${N.p} г · жиры ${N.f} г · углеводы ${N.c} г</p></div>
  <div class="card"><b>${esc(p.name)}</b><p style="margin:4px 0 0;color:var(--mute);font-weight:600">${esc(p.place)} · дни: ${p.days.map((d,i)=>d?DN[i]:null).filter(Boolean).join(', ')}</p></div>
@@ -1477,6 +1484,9 @@ document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)r
   if(d.yt){const u='https://www.youtube.com/results?search_query='+encodeURIComponent(d.yt);try{tg.openLink(u)}catch(x){window.open(u,'_blank')}}
   if(t.id==='support')openSheet(head('Поддержка','Мы на связи')+`<div class="list"><button class="li" id="supW"><span class="ic">✉️</span><span class="sp">Написать в поддержку<small class="hl">Живой человек · ответ придёт в чат с ботом</small></span>›</button><button class="li" id="supAI"><span class="ic">🤖</span><span class="sp">Спросить ИИ-тренера<small class="hl">Тренировки и питание · ответ сразу</small></span>›</button></div>`);
   if(t.id==='supW'){const u='https://t.me/trener24sportlivebot?start=support';try{tg.openTelegramLink(u)}catch(x){location.href=u}}
+  if(t.id==='forgetMe')openSheet(head('Удалить мои данные','Это нельзя отменить')+`<p style="font-weight:600;line-height:1.5">Удалим анкету, дневник питания, тренировки, вес и замеры — на этом телефоне и в облаке Telegram. Приложение начнётся с чистого листа.</p><button class="btn" id="forgetGo" style="margin-top:12px;background:#ff5a6e">Удалить всё</button><button class="btn alt" data-close style="margin-top:8px">Отмена</button>`);
+  if(t.id==='forgetGo'){FORGOT=true;clearTimeout(csT);csQ.clear();(async()=>{if(CS){const ks=await csCall('getKeys');if(ks&&ks.length)await csCall('removeItems',ks)}
+   try{Object.keys(localStorage).filter(k=>k.startsWith(KP)).forEach(k=>localStorage.removeItem(k))}catch(e){}location.reload()})()}
   if(t.id==='supAI'){closeSheet();coach()}
   if(t.id==='mealAlt'){P.mealSeed=(+P.mealSeed||0)+1;MP=null;save('mp',null);save('p',P);mealSheet(mDay);render();haptic()}
   if(t.id==='bmAdd')bmSheet();
