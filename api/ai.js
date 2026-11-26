@@ -196,10 +196,28 @@ module.exports = async (req, res) => {
     }
     if (b.type === 'meal') {
       const P = b.profile || {}, N = b.norm || {};
-      const out = await openai([{ role: 'system', content: MEAL_RULES }, { role: 'user', content:
-        `Норма: ${num(N.k)} ккал, белки ${num(N.p)} г, жиры ${num(N.f)} г, углеводы ${num(N.c)} г. ${who(P)}` +
-        `Пожелания: ${String(b.wish || P.foodWish || 'нет').slice(0, 300)}.` }], true, 3600, 0.6);
-      return res.json({ meal: JSON.parse(out) });
+      // Неделя одним запросом не успевала за лимит времени и обрывалась — пишем двумя частями параллельно, с повтором.
+      const DN = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
+      const user = `Норма: ${num(N.k)} ккал, белки ${num(N.p)} г, жиры ${num(N.f)} г, углеводы ${num(N.c)} г. ${who(P)}` +
+        `Пожелания: ${String(b.wish || P.foodWish || 'нет').slice(0, 300)}.`;
+      const part = async (from, cnt) => {
+        const rules = MEAL_RULES.replace('на 7 дней (понедельник–воскресенье)', `на ${cnt} дн. (${DN.slice(from, from + cnt).join(', ')})`)
+          .replace('В days ровно 7 элементов.', `В days ровно ${cnt} элемента(ов).`) + (from ? ' Блюда бери другие, чем в начале недели обычно: рыба, индейка, бобовые, запеканки.' : '');
+        for (let t = 0; t < 2; t++) {
+          try {
+            const o = JSON.parse(await openai([{ role: 'system', content: rules }, { role: 'user', content: user }], true, 2200, 0.6));
+            if (Array.isArray(o.days) && o.days.length) return o;
+          } catch (e) { /* повторяем ещё раз */ }
+        }
+        return null;
+      };
+      const [a, c] = await Promise.all([part(0, 4), part(4, 3)]);
+      if (!a && !c) return res.status(502).json({ error: 'ИИ не ответил' });
+      const days = [...(a ? a.days.slice(0, 4) : []), ...(c ? c.days.slice(0, 3) : [])];
+      while (days.length < 7) days.push(days[days.length % Math.max(1, days.length)]);
+      const shop = [...new Set([...((a && a.shop) || []), ...((c && c.shop) || [])])].slice(0, 25);
+      const m = a || c;
+      return res.json({ meal: { name: m.name || 'Рацион от ИИ', why: m.why || '', days, shop } });
     }
     if (b.type === 'chat') {
       const P = b.profile || {}, N = b.norm || {}, E = b.eaten || {};
