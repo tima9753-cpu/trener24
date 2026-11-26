@@ -179,7 +179,7 @@ input,select{font:inherit;font-size:16px;width:100%;min-height:50px;border-radiu
 .feat{margin:0 0 16px;padding:0;list-style:none;display:grid;gap:8px;font-weight:700;font-size:14px}
 .feat li::before{content:"✓";color:var(--carb);margin-right:8px;font-weight:800}
 .note{font-size:12px;color:var(--mute);text-align:center;margin:10px 0 0;font-weight:600}
-.toast{position:fixed;top:calc(14px + env(safe-area-inset-top));left:50%;transform:translate(-50%,-80px);background:#fff;color:#16131a;font-weight:800;padding:10px 18px;border-radius:16px;z-index:30;transition:transform .3s;white-space:nowrap}
+.toast{position:fixed;top:calc(14px + env(safe-area-inset-top));left:50%;transform:translate(-50%,-80px);background:#fff;color:#16131a;font-weight:800;padding:10px 18px;border-radius:16px;z-index:30;transition:transform .3s;white-space:normal;text-align:center;width:max-content;max-width:calc(100vw - 32px);line-height:1.35}
 .toast.on{transform:translate(-50%,0)}
 .water{display:flex;gap:6px;margin-top:12px}.water button{flex:1;height:36px;border-radius:10px;background:var(--card2)}
 .water button.f{background:linear-gradient(180deg,#7aa4ff,#4d7cff)}
@@ -212,7 +212,7 @@ input,select{font:inherit;font-size:16px;width:100%;min-height:50px;border-radiu
 .ancap{display:flex;gap:8px;align-items:center;padding:0 6px;min-height:22px}.ancap span{font-size:11px;font-weight:800;text-transform:uppercase;color:var(--acc);letter-spacing:.04em;white-space:nowrap}.ancap b{font-size:14.5px;line-height:1.3}
 .seg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px}.seg3 button{min-height:38px;border-radius:12px;background:var(--card);font-weight:800;font-size:13px;color:var(--mute)}.seg3 button[aria-pressed=true]{background:var(--card2);color:var(--ink);box-shadow:inset 0 0 0 1px rgba(255,107,44,.5)}
 .steps{margin:8px 0 0;padding-left:20px;font-weight:600;font-size:14.5px;line-height:1.45}.steps li{margin-bottom:4px}
-</style>
+.agree.err{outline:2px solid #ff5a5a;outline-offset:6px;border-radius:10px;animation:shk .35s}.agree.err input{outline:2px solid #ff5a5a;outline-offset:1px}@keyframes shk{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}.aerr{color:#ff6b6b;font-weight:800;font-size:14px;margin:10px 0 0}.btn.dim{opacity:.5}.agree input{width:26px!important;height:26px!important}.agree{cursor:pointer}</style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -1000,7 +1000,7 @@ function openSheet(h){$('#sheetBody').innerHTML='<div class="grab"></div>'+h;$('
 function closeSheet(){$('#sheet').classList.remove('on')}
 const head=(t,s)=>`<div class="shead"><div class="sp">${s?`<small>${s}</small>`:''}<h2>${t}</h2></div><button class="close" data-close aria-label="Закрыть">✕</button></div>`;
 $('#sheet').addEventListener('click',e=>{if(e.target.id==='sheet')closeSheet()});
-let tt;function toast(t){$('#toast').textContent=t;$('#toast').classList.add('on');clearTimeout(tt);tt=setTimeout(()=>$('#toast').classList.remove('on'),2000)}
+let tt;function toast(t){$('#toast').textContent=t;$('#toast').classList.add('on');clearTimeout(tt);tt=setTimeout(()=>$('#toast').classList.remove('on'),3500)}
 
 let target='Обед';
 const pickMeal=()=>{const h=new Date().getHours();return h<11?'Завтрак':h<16?'Обед':h<22?'Ужин':'Перекус'};
@@ -1366,7 +1366,8 @@ function healthHtml(){return `<p class="note" style="text-align:left;margin:0 0 
  <label for="oX">Другое (необязательно)</label><input id="oX" placeholder="Например: плоскостопие, астма" value="${esc(P.health||'')}">
  <label class="agree"><input type="checkbox" id="agr" ${P.agree?'checked':''}><span>Я понимаю, что «Тренер 24» даёт общие рекомендации и не заменяет врача. Я тренируюсь на свой риск, а при заболеваниях, беременности или травмах сначала проконсультируюсь с врачом.</span></label>`}
 function bindHealth(){$('#sheetBody').querySelectorAll('[data-flag]').forEach(b=>b.onclick=()=>{const f=b.dataset.flag;P.flags=P.flags.includes(f)?P.flags.filter(x=>x!==f):[...P.flags,f];b.setAttribute('aria-pressed',P.flags.includes(f));haptic()})}
-function readHealth(){P.health=$('#oX').value.trim();if(!$('#agr').checked){toast('Подтверди согласие, чтобы продолжить');return false}P.agree=P.agree||Date.now();return true}
+function agreeOk(ids){const sb=$('#sheetBody');sb.querySelectorAll('.aerr').forEach(x=>x.remove());sb.querySelectorAll('.agree.err').forEach(x=>x.classList.remove('err'));const bad=ids.filter(i=>!$('#'+i).checked);if(!bad.length)return true;bad.forEach(i=>{const l=$('#'+i).closest('.agree');void l.offsetWidth;l.classList.add('err')});const f=$('#'+bad[0]).closest('.agree');f.insertAdjacentHTML('afterend','<p class="aerr">☝️ Поставь галочку — без неё план не рассчитать</p>');f.scrollIntoView({behavior:'smooth',block:'center'});try{tg&&tg.HapticFeedback.notificationOccurred('error')}catch(e){}toast(bad.length>1?'Отметь обе галочки согласия внизу':'Отметь галочку согласия внизу');return false}
+function readHealth(){P.health=$('#oX').value.trim();if(!agreeOk(['agr']))return false;P.agree=P.agree||Date.now();return true}
 const eqHtml=()=>`<div class="opts">${EQH.map(([v,e,l])=>`<button class="opt" data-eq="${v}" aria-pressed="${P.equip.includes(v)}"><span>${e}</span><div>${l}</div></button>`).join('')}</div><p class="note" style="text-align:left">Ничего не отмечено — программа только с собственным весом.</p>`;
 const bindEq=()=>$('#sheetBody').querySelectorAll('[data-eq]').forEach(b=>b.onclick=()=>{const v=b.dataset.eq;P.equip=P.equip.includes(v)?P.equip.filter(x=>x!==v):[...P.equip,v];b.setAttribute('aria-pressed',P.equip.includes(v));haptic()});
 function edit(k){
@@ -1393,9 +1394,9 @@ function onboard(s){const dots=`<div class="dots">${Array.from({length:OBN},(_,i
  openSheet(b+`<button class="btn" id="obNext" style="margin-top:16px">${s<OBN-1?'Дальше':'Рассчитать мой план'}</button>`+(s?`<button class="btn alt" id="obBack" style="margin-top:8px">Назад</button>`:''));
  const sb=$('#sheetBody');
  sb.querySelectorAll('[data-o]').forEach(x=>x.onclick=()=>{const[k,v]=x.dataset.o.split('|');P[k]=k==='days'?+v:v;if(k==='days')P.act=+v>=4?'1.55':'1.375';sb.querySelectorAll(`[data-o^="${k}|"]`).forEach(y=>y.setAttribute('aria-pressed',y===x));if(k==='place'){const eb=$('#eqBox');if(eb)eb.hidden=v!=='home'}haptic()});
- bindEq();if(s===4)bindHealth();if(s)$('#obBack').onclick=()=>onboard(s-1);
+ bindEq();if(s===4){bindHealth();const up=()=>{const L=[...sb.querySelectorAll('.agree input')],ok=L.every(x=>x.checked);$('#obNext').classList.toggle('dim',!ok);if(ok){sb.querySelectorAll('.aerr').forEach(x=>x.remove());sb.querySelectorAll('.agree.err').forEach(x=>x.classList.remove('err'))}};sb.querySelectorAll('.agree input').forEach(x=>x.addEventListener('change',up));up()}if(s)$('#obBack').onclick=()=>onboard(s-1);
  $('#obNext').onclick=()=>{if(s===1){const _a=+$('#oA').value,_h=+$('#oH').value,_w=+String($('#oW').value).replace(',','.'),_g=+String($('#oG').value).replace(',','.');if(!(_a>=14&&_a<=90)){toast('Возраст: от 14 до 90 лет');return}if(!(_h>=120&&_h<=230)){toast('Рост: от 120 до 230 см');return}if(!(_w>=35&&_w<=250)){toast('Вес: от 35 до 250 кг');return}if(_g&&!(_g>=35&&_g<=250)){toast('Желаемый вес: от 35 до 250 кг');return}P.sex=$('#oS').value;P.age=+$('#oA').value||P.age;P.h=+$('#oH').value||P.h;P.w=+String($('#oW').value).replace(',','.')||P.w;P.goalW=+String($('#oG').value).replace(',','.')||P.goalW;const tk=key(today);WH=WH.filter(x=>x.d!==tk);WH.push({d:tk,w:P.w})}
-  if(s===4&&!readHealth())return;if(s<OBN-1)return onboard(s+1);P.custom=null;P.start=key(today);P.startW=+P.w;save('p',P);finishOB()}}
+  if(s===4&&!readHealth())return;if(s<OBN-1)return onboard(s+1);P.custom=null;P.start=key(today);P.startW=+P.w;save('p',P);try{finishOB()}catch(e){console.error(e);closeSheet();try{go('train')}catch(_){}toast('План готов — открываю тренировки')}}}
 function finishOB(){const N=norm(),p=plan();openSheet(head('Твой план готов','Персонально под тебя')+`<div class="freebox">${icon('i-fire')}<h2>${fmt(N.k)} ккал</h2><p>в день · белки ${N.p} г · жиры ${N.f} г · углеводы ${N.c} г</p></div>
  <div class="card"><b>${esc(p.name)}</b><p style="margin:4px 0 0;color:var(--mute);font-weight:600">${esc(p.place)} · дни: ${p.days.map((d,i)=>d?DN[i]:null).filter(Boolean).join(', ')}</p></div>
  ${P.flags.length?`<div class="warn">${doctor()?'Из-за отмеченных состояний обязательно получи разрешение врача перед началом тренировок. ':''}Программа составлена без опасных для тебя упражнений${gentle()?', в щадящем режиме':''}.</div>`:''}<button class="btn" data-close style="margin-top:12px">Поехали!</button>`);render()}
