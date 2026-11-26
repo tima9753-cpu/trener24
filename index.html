@@ -347,6 +347,8 @@ if(!P)P={sex:'m',age:29,h:178,w:80,goalW:75,act:'1.375',goal:'cut',place:'home',
 P={level:'beg',days:3,equip:[],flags:[],agree:0,remind:'19:00',custom:null,...P};
 if(!P.start){P.start=key(today);P.startW=+P.w}
 let LOG=load('log',null),WH=load('wh',null),DONE=load('done',{}),INV=load('inv',0),PREM=load('prem',null);
+// первая тренировка — в день регистрации: сдвигаем расписание для тех, кто ещё не тренировался
+if(P.shift==null){const _w=load('ws',{})||{},_tr=Object.values(DONE||{}).some(v=>Array.isArray(v)?v.some(Boolean):!!v)||Object.values(_w).some(S=>S&&S.ex&&S.ex.some(e=>(e.sets||[]).some(x=>x.d)));P.shift=(!_tr&&(today-pk(P.start))/864e5<8)?wd(pk(P.start)):0}
 if(!LOG)LOG={};
 if(!WH)WH=[{d:key(today),w:P.w}];
 let selF=key(today),selT=wd(today),range=7,view=FIRST?'food':load('view','food');
@@ -506,14 +508,14 @@ function buildPlan(){if(P.custom&&Array.isArray(P.custom.days))return customPlan
   // сначала базовые упражнения (не зависят от недельной ротации), потом вспомогательные
   [...sl.filter(pt=>!isAcc(pt)),...sl.filter(isAcc)].forEach(pt=>{if(pt!=='cardio'&&ex.length>=7)return;let e=pick(pt,used,wu,rotOf(pt));if(!e)for(const f of FALL[pt]||[]){e=pick(f,used,wu,isAcc(pt)&&!isAcc(f)?cycleMonth()+i:rotOf(f));if(e)break}if(!e)return;used.add(e.n);wu[e.n]=(wu[e.n]||0)+1;const ds=dose(e.pt,e);ex.push({n:e.n,s:ds.s,r:ds.r,rest:ds.rest,why:PWHY[e.pt]})});
   ex.sort((a,b)=>RK(a)-RK(b));
-  days[sp.dw[i]]={t:t.t,focus:t.focus,ex,m:Math.round(ex.reduce((a,x)=>a+x.s*(x.rest+40)/60,0)+8)}});
+  days[(sp.dw[i]+(P.shift||0))%7]={t:t.t,focus:t.focus,ex,m:Math.round(ex.reduce((a,x)=>a+x.s*(x.rest+40)/60,0)+8)}});
  return{name:sp.name,place:P.place==='gym'?'зал':'дома · '+['свой вес',...P.equip.map(e=>EQN[e])].join(', '),why:sp.why,days,custom:false}}
 let PLANC=null;
-function plan(){const sig=JSON.stringify([P.goal,P.level,P.days,P.place,P.equip,P.flags,P.custom,cycleMonth(),weekNo()]);if(!PLANC||PLANC.sig!==sig){PLANC=buildPlan();PLANC.sig=sig}return PLANC}
+function plan(){const sig=JSON.stringify([P.shift||0,P.goal,P.level,P.days,P.place,P.equip,P.flags,P.custom,cycleMonth(),weekNo()]);if(!PLANC||PLANC.sig!==sig){PLANC=buildPlan();PLANC.sig=sig}return PLANC}
 const prevIdx=i=>{for(let k=1;k<7;k++){const j=(i-k+7)%7;if(plan().days[j])return j}return -1};
 const nextIdx=i=>{for(let k=1;k<7;k++){const j=(i+k)%7;if(plan().days[j])return j}return -1};
 function dayWhy(i){const p=plan(),d=p.days[i],pr=prevIdx(i),nx=nextIdx(i);
- if(!d)return `Сегодня отдых — это часть программы. Мышцы растут и восстанавливаются между тренировками${pr>=0?`: после тренировки «${p.days[pr].t}» им нужно 48–72 часа`:''}. Пройди 6–8 тысяч шагов и сделай лёгкую растяжку${nx>=0?`. Следующая тренировка — в ${DNF[nx]}`:''}.`;
+ if(!d)return `Сегодня отдых — это часть программы. Мышцы растут и восстанавливаются между тренировками${pr>=0&&Object.keys(DONE).length?`: после тренировки «${p.days[pr].t}» им нужно 48–72 часа`:''}. Пройди 6–8 тысяч шагов и сделай лёгкую растяжку${nx>=0?`. Следующая тренировка — в ${DNF[nx]}`:''}.`;
  if(d.dwhy)return d.dwhy;
  const gap=pr<0?7:(i-pr+7)%7;let w=`Сегодня акцент на ${d.focus}.`;
  if(d.t.startsWith('Всё тело'))w+=' Нагружаем всё тело, но другими упражнениями, чем в прошлый раз, — мышцы получают новый стимул.';
@@ -1396,7 +1398,7 @@ function onboard(s){const dots=`<div class="dots">${Array.from({length:OBN},(_,i
  sb.querySelectorAll('[data-o]').forEach(x=>x.onclick=()=>{const[k,v]=x.dataset.o.split('|');P[k]=k==='days'?+v:v;if(k==='days')P.act=+v>=4?'1.55':'1.375';sb.querySelectorAll(`[data-o^="${k}|"]`).forEach(y=>y.setAttribute('aria-pressed',y===x));if(k==='place'){const eb=$('#eqBox');if(eb)eb.hidden=v!=='home'}haptic()});
  bindEq();if(s===4){bindHealth();const up=()=>{const L=[...sb.querySelectorAll('.agree input')],ok=L.every(x=>x.checked);$('#obNext').classList.toggle('dim',!ok);if(ok){sb.querySelectorAll('.aerr').forEach(x=>x.remove());sb.querySelectorAll('.agree.err').forEach(x=>x.classList.remove('err'))}};sb.querySelectorAll('.agree input').forEach(x=>x.addEventListener('change',up));up()}if(s)$('#obBack').onclick=()=>onboard(s-1);
  $('#obNext').onclick=()=>{if(s===1){const _a=+$('#oA').value,_h=+$('#oH').value,_w=+String($('#oW').value).replace(',','.'),_g=+String($('#oG').value).replace(',','.');if(!(_a>=14&&_a<=90)){toast('Возраст: от 14 до 90 лет');return}if(!(_h>=120&&_h<=230)){toast('Рост: от 120 до 230 см');return}if(!(_w>=35&&_w<=250)){toast('Вес: от 35 до 250 кг');return}if(_g&&!(_g>=35&&_g<=250)){toast('Желаемый вес: от 35 до 250 кг');return}P.sex=$('#oS').value;P.age=+$('#oA').value||P.age;P.h=+$('#oH').value||P.h;P.w=+String($('#oW').value).replace(',','.')||P.w;P.goalW=+String($('#oG').value).replace(',','.')||P.goalW;const tk=key(today);WH=WH.filter(x=>x.d!==tk);WH.push({d:tk,w:P.w})}
-  if(s===4&&!readHealth())return;if(s<OBN-1)return onboard(s+1);P.custom=null;P.start=key(today);P.startW=+P.w;save('p',P);try{finishOB()}catch(e){console.error(e);closeSheet();try{go('train')}catch(_){}toast('План готов — открываю тренировки')}}}
+  if(s===4&&!readHealth())return;if(s<OBN-1)return onboard(s+1);P.custom=null;P.shift=wd(today);P.start=key(today);P.startW=+P.w;save('p',P);try{finishOB()}catch(e){console.error(e);closeSheet();try{go('train')}catch(_){}toast('План готов — открываю тренировки')}}}
 function finishOB(){const N=norm(),p=plan();openSheet(head('Твой план готов','Персонально под тебя')+`<div class="freebox">${icon('i-fire')}<h2>${fmt(N.k)} ккал</h2><p>в день · белки ${N.p} г · жиры ${N.f} г · углеводы ${N.c} г</p></div>
  <div class="card"><b>${esc(p.name)}</b><p style="margin:4px 0 0;color:var(--mute);font-weight:600">${esc(p.place)} · дни: ${p.days.map((d,i)=>d?DN[i]:null).filter(Boolean).join(', ')}</p></div>
  ${P.flags.length?`<div class="warn">${doctor()?'Из-за отмеченных состояний обязательно получи разрешение врача перед началом тренировок. ':''}Программа составлена без опасных для тебя упражнений${gentle()?', в щадящем режиме':''}.</div>`:''}<button class="btn" data-close style="margin-top:12px">Поехали!</button>`);render()}
