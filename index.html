@@ -298,8 +298,8 @@ input,select{font:inherit;font-size:16px;width:100%;min-height:50px;border-radiu
   <div class="list" id="dataList"></div>
   <div class="sec">Другое</div>
   <div class="list" style="overflow:visible;position:relative">
-   <button class="li" id="forgetMe"><span class="ic">🗑</span><span class="sp">Удалить мои данные</span></button>
    <button class="li" id="support"><span class="ic">💬</span><span class="sp">Поддержка</span><span class="v">чат</span></button>
+   <button class="li" id="forgetMe"><span class="ic">🗑</span><span class="sp">Удалить мои данные</span></button>
    <button class="li" id="newsCh"><span class="ic">📢</span><span class="sp">Канал новостей Тренер 24</span><span class="v">канал</span></button>
    <button class="li" id="commPro"><span class="ic">⭐</span><span class="sp">PRO-чат с тренером</span><span class="v">PRO</span></button>
    <button class="li" id="invite"><span class="ic">🎁</span><span class="sp">Пригласить друга</span><span class="v"></span></button>
@@ -1197,34 +1197,53 @@ function showGate(){if($('#gate'))return;const g=document.createElement('div');g
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&$('#gate'))subGate(true)});
 
 
-/* ---------- облачное сохранение: Telegram CloudStorage (данные привязаны к аккаунту Telegram, другие пользователи их не видят) ---------- */
+/* ---------- сохранение данных: база на нашем сервере в России; облако Telegram — только когда приложение открыто не с нашего сервера ---------- */
 var CS=null,TS=null,csQ=new Set(),csT=0,csLast={};
+const SRV=LIVE&&/^\/app\/?$/.test(location.pathname);
 try{CS=tg&&tg.CloudStorage&&tg.isVersionAtLeast&&tg.isVersionAtLeast('6.9')&&LIVE?tg.CloudStorage:null}catch(e){CS=null}
 TS=load('ts',{});
 const SYNCK=['p','log','wh','done','ws','wl','prd','mp','bm','chk','inv','prem'];
 const csCall=(m,...a)=>new Promise(r=>{try{CS[m](...a,(e,v)=>r(e?null:v))}catch(x){r(null)}});
-function csMark(k){if(!CS||!TS||!SYNCK.includes(k))return;if(!CSREADY){csQ.add(k);return}TS[k]=Date.now();try{localStorage.setItem(KP+'ts',JSON.stringify(TS))}catch(e){}csQ.add(k);clearTimeout(csT);csT=setTimeout(csFlush,2500)}
+async function srvCall(body){try{const r=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tg.initData,...body})});return r.ok?await r.json():null}catch(e){return null}}
+function csMark(k){if((!CS&&!SRV)||!TS||!SYNCK.includes(k))return;if(!CSREADY){csQ.add(k);return}TS[k]=Date.now();try{localStorage.setItem(KP+'ts',JSON.stringify(TS))}catch(e){}csQ.add(k);clearTimeout(csT);csT=setTimeout(csFlush,2500)}
 function csPack(k){let v=localStorage.getItem(KP+k)||'null';if(k==='log'){try{const o=JSON.parse(v)||{};for(const d in o)for(const m in (o[d].m||{}))o[d].m[m]=o[d].m[m].map(x=>x.img?{...x,img:''}:x);v=JSON.stringify(o)}catch(e){}}return v}
 var FORGOT=false;
-async function csFlush(){if(FORGOT)return;if(!CS)return;if(!(P&&P.agree)){clearTimeout(csT);csT=setTimeout(csFlush,5000);return}const ks=[...csQ];csQ.clear();
+async function csFlush(){if(FORGOT)return;if(!(P&&P.agree)){clearTimeout(csT);csT=setTimeout(csFlush,5000);return}const ks=[...csQ];csQ.clear();if(!ks.length)return;
+ if(SRV){const set={};ks.forEach(k=>{const v=csPack(k);if(csLast[k]!==v)set[k]={v,t:TS[k]||Date.now()}});if(!Object.keys(set).length)return;
+  const r=await srvCall({set});if(r&&r.ok)Object.keys(set).forEach(k=>csLast[k]=set[k].v);else{ks.forEach(k=>csQ.add(k));clearTimeout(csT);csT=setTimeout(csFlush,15000)}return}
+ if(!CS)return;
  for(const k of ks){const v=csPack(k);if(csLast[k]===v)continue;const ch=[];for(let i=0;i<v.length;i+=3800)ch.push(v.slice(i,i+3800));
   const om=await csCall('getItem','m_'+k),on=+(String(om||'').split('|')[1]||0);let ok=true;
   for(let i=0;i<ch.length;i++){if(await csCall('setItem',`c_${k}_${i}`,ch[i])===null){ok=false;break}}
   if(!ok){csQ.add(k);continue}
   await csCall('setItem','m_'+k,`${TS[k]||Date.now()}|${ch.length}`);if(on>ch.length)await csCall('removeItems',Array.from({length:on-ch.length},(_,i)=>`c_${k}_${ch.length+i}`));csLast[k]=v}
  if(csQ.size){clearTimeout(csT);csT=setTimeout(csFlush,10000)}}
-async function csRestore(){if(!CS)return;const keys=await csCall('getKeys');if(!keys)return;const metas=keys.filter(x=>x.startsWith('m_'));
- const mv=metas.length?await csCall('getItems',metas):{};if(!mv)return;if(localStorage.getItem(KP+'claimed')){if(!metas.includes('m_p')){try{Object.keys(localStorage).filter(k=>k.startsWith(KP)).forEach(k=>localStorage.removeItem(k));sessionStorage.setItem('t24rl','0')}catch(e){}location.reload();return}localStorage.removeItem(KP+'claimed')}let changed=0;
- for(const mk of metas){const k=mk.slice(2);if(!SYNCK.includes(k))continue;const[t,n]=String(mv[mk]||'').split('|').map(Number);if(!t||!n||(!CSFRESH&&t<=(TS[k]||0)))continue;
-  const cks=Array.from({length:n},(_,i)=>`c_${k}_${i}`),cv=await csCall('getItems',cks);if(!cv)continue;const v=cks.map(c=>cv[c]||'').join('');try{JSON.parse(v)}catch(e){continue}
-  if(k==='log'){try{const loc=JSON.parse(localStorage.getItem(KP+'log')||'null')||{},o=JSON.parse(v)||{};for(const d in o)for(const m in (o[d].m||{}))o[d].m[m].forEach((x,i)=>{const l=(((loc[d]||{}).m||{})[m]||[])[i];if(l&&l.n===x.n&&l.img)x.img=l.img});localStorage.setItem(KP+'log',JSON.stringify(o))}catch(e){localStorage.setItem(KP+'log',v)}}
-  else localStorage.setItem(KP+k,v);TS[k]=t;csLast[k]=v;changed=1}
+/* читаем копию из облака Telegram: {k:{v,t}} */
+async function csReadAll(){if(!CS)return null;const keys=await csCall('getKeys');if(!keys)return null;const metas=keys.filter(x=>x.startsWith('m_'));const out={};if(!metas.length)return{out,keys};
+ const mv=await csCall('getItems',metas);if(!mv)return null;
+ for(const mk of metas){const k=mk.slice(2);if(!SYNCK.includes(k))continue;const[t,n]=String(mv[mk]||'').split('|').map(Number);if(!t||!n)continue;
+  const cks=Array.from({length:n},(_,i)=>`c_${k}_${i}`),cv=await csCall('getItems',cks);if(!cv)continue;const v=cks.map(c=>cv[c]||'').join('');try{JSON.parse(v)}catch(e){continue}out[k]={v,t}}
+ return{out,keys}}
+/* применяем удалённую копию: побеждает более свежая; на новом устройстве удалённая важнее пустой локальной */
+function applyRemote(R){let changed=0;
+ for(const[k,o]of Object.entries(R)){if(!SYNCK.includes(k)||!o||!o.t||(!CSFRESH&&o.t<=(TS[k]||0)))continue;const v=o.v;
+  if(k==='log'){try{const loc=JSON.parse(localStorage.getItem(KP+'log')||'null')||{},x=JSON.parse(v)||{};for(const d in x)for(const m in (x[d].m||{}))x[d].m[m].forEach((y,i)=>{const l=(((loc[d]||{}).m||{})[m]||[])[i];if(l&&l.n===y.n&&l.img)y.img=l.img});localStorage.setItem(KP+'log',JSON.stringify(x))}catch(e){localStorage.setItem(KP+'log',v)}}
+  else localStorage.setItem(KP+k,v);TS[k]=o.t;csLast[k]=v;changed=1}
+ return changed}
+async function csRestore(){if(!CS&&!SRV)return;let R,changed=0;
+ if(SRV){const r=await srvCall({get:1});if(!r||!r.ok)return;R=r.data||{};
+  if(!Object.keys(R).length&&CS){const c=await csReadAll();if(c&&Object.keys(c.out).length){R=c.out;changed=applyRemote(R);
+   const set={};SYNCK.forEach(k=>{if(localStorage.getItem(KP+k)!=null)set[k]={v:csPack(k),t:TS[k]||Date.now()}});const ok=await srvCall({set});
+   if(ok&&ok.ok&&c.keys.length)await csCall('removeItems',c.keys.filter(x=>/^[mc]_/.test(x)))}}
+  else changed=applyRemote(R)}
+ else{const c=await csReadAll();if(!c)return;R=c.out;changed=applyRemote(R)}
+ if(localStorage.getItem(KP+'claimed')){if(!R.p){try{Object.keys(localStorage).filter(k=>k.startsWith(KP)).forEach(k=>localStorage.removeItem(k));sessionStorage.setItem('t24rl','0')}catch(e){}location.reload();return}localStorage.removeItem(KP+'claimed')}
  CSREADY=true;csQ.clear();
- SYNCK.forEach(k=>{const m=mv['m_'+k],t=m?+String(m).split('|')[0]:0;if(localStorage.getItem(KP+k)==null)return;if(!t){TS[k]=TS[k]||Date.now();csQ.add(k)}else if(!CSFRESH&&(TS[k]||0)>t)csQ.add(k)});
+ SYNCK.forEach(k=>{if(localStorage.getItem(KP+k)==null)return;const t=(R[k]||{}).t||0;if(!t){TS[k]=TS[k]||Date.now();csQ.add(k)}else if(!CSFRESH&&(TS[k]||0)>t)csQ.add(k)});
  try{localStorage.setItem(KP+'ts',JSON.stringify(TS))}catch(e){}
  if(csQ.size){clearTimeout(csT);csT=setTimeout(csFlush,1500)}
  if(changed){let n=0;try{n=+sessionStorage.getItem('t24rl')||0}catch(e){}if(n<2){try{sessionStorage.setItem('t24rl',n+1)}catch(e){}location.reload()}}}
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&CS&&csQ.size)csFlush()});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&(CS||SRV)&&csQ.size)csFlush()});
 
 /* ---------- контекст для ИИ-тренера: всё, что приложение знает о человеке ---------- */
 function aiContext(){const k=key(today),d=plan().days[wd(today)],S=WS[k]||(d?sessOf(k,wd(today)):null),out=[];
@@ -1394,10 +1413,11 @@ const EDIT={goal:['Цель','sel',[['cut','Похудеть'],['keep','Держ
  level:['Уровень подготовки','sel',[['beg','Новичок — до 6 месяцев'],['mid','Средний — от 6 месяцев'],['adv','Опытный — больше 2 лет']]],days:['Тренировок в неделю','sel',[['2','2 раза'],['3','3 раза'],['4','4 раза'],['5','5 раз']]]};
 function healthHtml(){return `<p class="note" style="text-align:left;margin:0 0 10px">Отметь, если что-то из этого есть. Мы уберём опасные упражнения и снизим нагрузку.</p><div class="opts">${FLAGS.map(([k,e,l])=>`<button class="opt" data-flag="${k}" aria-pressed="${P.flags.includes(k)}"><span>${e}</span><div>${l}</div></button>`).join('')}</div>
  <label for="oX">Другое (необязательно)</label><input id="oX" placeholder="Например: плоскостопие, астма" value="${esc(P.health||'')}">
- <label class="agree"><input type="checkbox" id="agr" ${P.agree?'checked':''}><span>Я понимаю, что «Тренер 24» даёт общие рекомендации и не заменяет врача. Я тренируюсь на свой риск, а при заболеваниях, беременности или травмах сначала проконсультируюсь с врачом.</span></label>`}
+ <label class="agree"><input type="checkbox" id="agr" ${P.agree?'checked':''}><span>Я понимаю, что «Тренер 24» даёт общие рекомендации и не заменяет врача. Я тренируюсь на свой риск, а при заболеваниях, беременности или травмах сначала проконсультируюсь с врачом.</span></label>
+ <label class="agree"><input type="checkbox" id="agrPd" ${P.pdAgree?'checked':''}><span>Даю <a href="#" data-doc="privacy" style="color:var(--acc)">согласие на обработку персональных данных</a>, включая сведения о здоровье, и их передачу сервису ИИ для расчёта рекомендаций — в соответствии с <a href="#" data-doc="privacy" style="color:var(--acc)">политикой конфиденциальности</a>.</span></label>`}
 function bindHealth(){$('#sheetBody').querySelectorAll('[data-flag]').forEach(b=>b.onclick=()=>{const f=b.dataset.flag;P.flags=P.flags.includes(f)?P.flags.filter(x=>x!==f):[...P.flags,f];b.setAttribute('aria-pressed',P.flags.includes(f));haptic()})}
 function agreeOk(ids){const sb=$('#sheetBody');sb.querySelectorAll('.aerr').forEach(x=>x.remove());sb.querySelectorAll('.agree.err').forEach(x=>x.classList.remove('err'));const bad=ids.filter(i=>!$('#'+i).checked);if(!bad.length)return true;bad.forEach(i=>{const l=$('#'+i).closest('.agree');void l.offsetWidth;l.classList.add('err')});const f=$('#'+bad[0]).closest('.agree');f.insertAdjacentHTML('afterend','<p class="aerr">☝️ Поставь галочку — без неё план не рассчитать</p>');f.scrollIntoView({behavior:'smooth',block:'center'});try{tg&&tg.HapticFeedback.notificationOccurred('error')}catch(e){}toast(bad.length>1?'Отметь обе галочки согласия внизу':'Отметь галочку согласия внизу');return false}
-function readHealth(){P.health=$('#oX').value.trim();if(!agreeOk(['agr']))return false;P.agree=P.agree||Date.now();return true}
+function readHealth(){P.health=$('#oX').value.trim();if(!agreeOk(['agr','agrPd']))return false;P.agree=P.agree||Date.now();P.pdAgree=P.pdAgree||Date.now();if(SRV)fetch('/api/consent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tg.initData})}).catch(()=>{});return true}
 const eqHtml=()=>`<div class="opts">${EQH.map(([v,e,l])=>`<button class="opt" data-eq="${v}" aria-pressed="${P.equip.includes(v)}"><span>${e}</span><div>${l}</div></button>`).join('')}</div><p class="note" style="text-align:left">Ничего не отмечено — программа только с собственным весом.</p>`;
 const bindEq=()=>$('#sheetBody').querySelectorAll('[data-eq]').forEach(b=>b.onclick=()=>{const v=b.dataset.eq;P.equip=P.equip.includes(v)?P.equip.filter(x=>x!==v):[...P.equip,v];b.setAttribute('aria-pressed',P.equip.includes(v));haptic()});
 function edit(k){
@@ -1511,11 +1531,11 @@ document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)r
   if(d.yt){const u='https://www.youtube.com/results?search_query='+encodeURIComponent(d.yt);try{tg.openLink(u)}catch(x){window.open(u,'_blank')}}
   if(t.id==='support')openSheet(head('Поддержка','Мы на связи')+`<div class="list"><button class="li" id="supW"><span class="ic">✉️</span><span class="sp">Написать в поддержку<small class="hl">Живой человек · ответ придёт в чат с ботом</small></span>›</button><button class="li" id="supAI"><span class="ic">🤖</span><span class="sp">Спросить ИИ-тренера<small class="hl">Тренировки и питание · ответ сразу</small></span>›</button><button class="li" id="netChk"><span class="ic">📶</span><span class="sp">Проверить связь<small class="hl">Если не работают фото или рацион</small></span>›</button></div>`);
   if(t.id==='supW'){const u='https://t.me/trener24sportlivebot?start=support';try{tg.openTelegramLink(u)}catch(x){location.href=u}}
-  if(t.id==='forgetMe')openSheet(head('Удалить мои данные','Это нельзя отменить')+`<p style="font-weight:600;line-height:1.5">Удалим анкету, дневник питания, тренировки, вес и замеры — на этом телефоне и в облаке Telegram. Приложение начнётся с чистого листа.</p><button class="btn" id="forgetGo" style="margin-top:12px;background:#ff5a6e">Удалить всё</button><button class="btn alt" data-close style="margin-top:8px">Отмена</button>`);
-  if(t.id==='forgetGo'){FORGOT=true;clearTimeout(csT);csQ.clear();(async()=>{if(CS){const ks=await csCall('getKeys');if(ks&&ks.length)await csCall('removeItems',ks)}
-   try{Object.keys(localStorage).filter(k=>k.startsWith(KP)).forEach(k=>localStorage.removeItem(k))}catch(e){}location.reload()})()}
   if(t.id==='supAI'){closeSheet();coach()}
   if(t.id==='mealAlt'){P.mealSeed=(+P.mealSeed||0)+1;MP=null;save('mp',null);save('p',P);mealSheet(mDay);render();haptic()}
+  if(t.id==='forgetMe')openSheet(head('Удалить мои данные','Это нельзя отменить')+`<p style="font-weight:600;line-height:1.5">Удалим анкету, дневник питания, тренировки, вес и замеры — на этом телефоне и на нашем сервере. Приложение начнётся с чистого листа.</p><p class="note" style="text-align:left">Данные об оплатах храним, как требует закон о бухучёте.</p><button class="btn" id="forgetGo" style="margin-top:12px;background:#ff5a6e">Удалить всё</button><button class="btn alt" data-close style="margin-top:8px">Отмена</button>`);
+  if(t.id==='forgetGo'){FORGOT=true;clearTimeout(csT);csQ.clear();(async()=>{if(SRV)await fetch('/api/forget',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tg.initData})}).catch(()=>{});if(CS){const ks=await csCall('getKeys');if(ks&&ks.length)await csCall('removeItems',ks)}
+   try{Object.keys(localStorage).filter(k=>k.startsWith(KP)).forEach(k=>localStorage.removeItem(k))}catch(e){}location.reload()})()}
   if(t.id==='bmAdd')bmSheet();
   if(t.id==='bmGo')bmSave();
   if(t.id==='newsCh'){try{tg.openTelegramLink(NEWS_LINK)}catch(x){location.href=NEWS_LINK}}
@@ -1538,6 +1558,7 @@ document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)r
  if(d.useprog!==undefined){const m=C[+d.useprog];if(m&&m.prog){P.custom=m.prog;save('p',P);closeSheet();selT=wd(today);go('train');toast('Программа сохранена')}}
 });
 document.addEventListener('click',e=>{const im=e.target.closest('img.exth');if(im)exSheet(im.dataset.tip)});
+document.addEventListener('click',e=>{const a=e.target.closest('[data-doc]');if(!a)return;e.preventDefault();const u=(SRV?location.origin+'/'+a.dataset.doc:'https://trener24.vercel.app/site/'+a.dataset.doc+'.html');try{tg.openLink(u)}catch(x){window.open(u,'_blank')}});
 $('#segStat').onclick=e=>{const b=e.target.closest('button');if(!b)return;range=+b.dataset.r;$('#segStat').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));render()};
 
 let COMM=null;async function community(k){try{if(!COMM)COMM=await (await fetch('/api/bot?cfg=1')).json()}catch(e){COMM=null}
