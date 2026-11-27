@@ -212,7 +212,7 @@ input,select{font:inherit;font-size:16px;width:100%;min-height:50px;border-radiu
 .ancap{display:flex;gap:8px;align-items:center;padding:0 6px;min-height:22px}.ancap span{font-size:11px;font-weight:800;text-transform:uppercase;color:var(--acc);letter-spacing:.04em;white-space:nowrap}.ancap b{font-size:14.5px;line-height:1.3}
 .seg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px}.seg3 button{min-height:38px;border-radius:12px;background:var(--card);font-weight:800;font-size:13px;color:var(--mute)}.seg3 button[aria-pressed=true]{background:var(--card2);color:var(--ink);box-shadow:inset 0 0 0 1px rgba(255,107,44,.5)}
 .steps{margin:8px 0 0;padding-left:20px;font-weight:600;font-size:14.5px;line-height:1.45}.steps li{margin-bottom:4px}
-.agree.err{outline:2px solid #ff5a5a;outline-offset:6px;border-radius:10px;animation:shk .35s}.agree.err input{outline:2px solid #ff5a5a;outline-offset:1px}@keyframes shk{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}.aerr{color:#ff6b6b;font-weight:800;font-size:14px;margin:10px 0 0}.btn.dim{opacity:.5}.agree input{width:26px!important;height:26px!important}.agree{cursor:pointer}</style>
+.agree.err{outline:2px solid #ff5a5a;outline-offset:6px;border-radius:10px;animation:shk .35s}.agree.err input{outline:2px solid #ff5a5a;outline-offset:1px}@keyframes shk{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}.aerr{color:#ff6b6b;font-weight:800;font-size:14px;margin:10px 0 0}.btn.dim{opacity:.5}.agree input{width:26px!important;height:26px!important}.agree{cursor:pointer}.opsum{margin-top:10px;padding:12px 14px;border-radius:14px;background:rgba(255,122,47,.12);line-height:1.4}.opsum b{font-size:20px}.opsum small{display:block;opacity:.75;font-weight:600}</style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -315,7 +315,7 @@ input,select{font:inherit;font-size:16px;width:100%;min-height:50px;border-radiu
 <div class="sheet" id="sheet" role="dialog" aria-modal="true"><div id="sheetBody"></div></div>
 <input type="file" id="file" accept="image/*" hidden>
 <input type="file" id="cam" accept="image/*" capture="environment" hidden>
-<input type="file" id="mach" accept="image/*" hidden>
+<input type="file" id="mach" accept="image/*" hidden><input type="file" id="scanF" accept="image/*" capture="environment" hidden>
 
 <nav class="nav"><div id="nav"></div></nav>
 
@@ -327,7 +327,12 @@ const tg=window.Telegram&&window.Telegram.WebApp;
 if(tg){try{tg.ready();tg.expand();tg.setHeaderColor&&tg.setHeaderColor('#121115');tg.setBackgroundColor&&tg.setBackgroundColor('#121115')}catch(e){}}
 const haptic=t=>{try{tg&&tg.HapticFeedback.impactOccurred(t||'light')}catch(e){}};
 const LIVE=!!(tg&&tg.initData)&&!location.hostname.endsWith('github.io');
-async function ai(p){const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...p,initData:tg.initData})});let j={};try{j=await r.json()}catch(e){}if(!r.ok||j.error)throw new Error(j.error||'Ошибка сервера');return j}
+async function ai(p){const long=p.type==='meal'||p.type==='program',once=async()=>{const ac=new AbortController(),to=setTimeout(()=>ac.abort(),long?58000:35000);let r;
+  try{r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...p,initData:tg.initData}),signal:ac.signal})}catch(e){const n=new Error('NET');n.net=true;throw n}finally{clearTimeout(to)}
+  let j={};try{j=await r.json()}catch(e){}if(!r.ok||j.error){const e=new Error(j.error||('Ошибка сервера '+r.status));e.status=r.status;if(r.status>=502&&!j.error)e.net=true;throw e}return j};
+ try{return await once()}catch(e){if(e.net&&!long)return once();throw e}}
+const NETMSG='Нет связи с сервером ИИ. Так бывает на мобильном интернете — попробуй через Wi‑Fi. Пока можно прислать фото или описание еды боту в чат: он посчитает калории сам.';
+function toBot(){try{tg.openTelegramLink('https://t.me/trener24sportlivebot')}catch(x){location.href='https://t.me/trener24sportlivebot'}}
 // данные на телефоне — отдельно для каждого аккаунта Telegram
 const KP=(()=>{let u='';try{const us=LIVE&&tg.initDataUnsafe&&tg.initDataUnsafe.user;u=us&&us.id?String(us.id):''}catch(e){}if(!u)return 't24v3_';const p='t24v3_u'+u+'_';
  try{const L=Object.keys(localStorage).filter(k=>k.startsWith('t24v3_')&&!/^t24v3_(u\d+_|owner$)/.test(k));
@@ -1019,6 +1024,7 @@ function addSheet(meal){target=meal||pickMeal();
   <button class="tile" data-act="fav">${icon('i-heart')}<b>Недавние</b><small>Добавить повторно</small></button>
   <button class="tile" data-act="txt">${icon('i-pen')}<b>Описать</b><small class="hot">Добавить словами</small></button>
   <button class="tile" data-act="prod">${icon('i-scale')}<b>Из продуктов</b><small class="hot">Граммы и КБЖУ</small></button>
+  <button class="tile wide" data-act="scan">${icon('i-scale')}<b>Штрихкод или этикетка</b><small class="hot">Сфотографируй упаковку — найду КБЖУ</small></button>
   ${meal?'':`<button class="tile wide" data-act="train">${icon('i-dumb')}<b>Начать тренировку</b><small>${(plan().days[wd(today)]||{t:'Сегодня отдых'}).t}</small></button>`}</div>`)}
 
 
@@ -1149,8 +1155,23 @@ function plateTot(){const A=ALLP(),T=PLATE.reduce((a,x)=>{const m=macro(A[x.i],x
 function plateGo(){if(!PLATE.length){toast('Добавь хотя бы один продукт');return}const A=ALLP(),T=plateTot(),items=PLATE.filter(x=>x.g>0).map(x=>({n:A[x.i][0],g:x.g}));if(!items.length){toast('Укажи вес продуктов');return}
  const nm=$('#pn').value.trim()||items.map(x=>x.n.split(' (')[0]).join(' + ').slice(0,60),m=$('#pmeal').value;
  day(selF).m[m].push({n:nm,k:Math.round(T.k),p:Math.round(T.p),f:Math.round(T.f),c:Math.round(T.c),g:Math.round(T.g),items,img:''});closeSheet();if(view!=='food')go('food');else render();haptic('medium');toast('Добавлено: '+Math.round(T.k)+' ккал')}
-function ownProduct(){const keep=PLATE.slice();openSheet(head('Свой продукт','Значения на 100 г — есть на упаковке')+`<input id="opN" placeholder="Название, например: Батончик протеиновый"><div class="g2" style="margin-top:8px"><div><label for="opK">Ккал</label><input id="opK" type="number" inputmode="decimal"></div><div><label for="opP">Белки, г</label><input id="opP" type="number" inputmode="decimal"></div><div><label for="opF">Жиры, г</label><input id="opF" type="number" inputmode="decimal"></div><div><label for="opC">Углеводы, г</label><input id="opC" type="number" inputmode="decimal"></div></div><div style="margin-top:8px"><label for="opG">Обычная порция, г</label><input id="opG" type="number" inputmode="decimal" value="100"></div><button class="btn" id="opGo" style="margin-top:14px">Сохранить и добавить</button>`);
- $('#sheet').dataset.keep=JSON.stringify(keep);$('#opN').focus()}
+function ownProduct(){const keep=PLATE.slice();openSheet(head('Свой продукт','Значения на 100 г — есть на упаковке')+`<input id="opN" placeholder="Название, например: Батончик протеиновый"><div class="g2" style="margin-top:8px"><div><label for="opK">Ккал</label><input id="opK" type="number" inputmode="decimal"></div><div><label for="opP">Белки, г</label><input id="opP" type="number" inputmode="decimal"></div><div><label for="opF">Жиры, г</label><input id="opF" type="number" inputmode="decimal"></div><div><label for="opC">Углеводы, г</label><input id="opC" type="number" inputmode="decimal"></div></div><div style="margin-top:8px"><label for="opG">Сколько съел, г</label><input id="opG" type="number" inputmode="decimal" value="100"></div><div id="opSum" class="opsum"></div>
+ <div class="g2" style="margin-top:10px"><button class="btn alt" id="opScan" style="padding:12px 8px">📷 Штрихкод / этикетка</button><button class="btn alt" id="opAI" style="padding:12px 8px">✨ Подсказать КБЖУ</button></div>
+ <div class="g2" style="margin-top:8px;grid-template-columns:1fr auto"><input id="opCode" type="text" inputmode="numeric" placeholder="или цифры штрихкода"><button class="btn alt" id="opCodeGo" style="padding:12px 16px;width:auto">Найти</button></div>
+ <button class="btn" id="opGo" style="margin-top:14px">Сохранить и добавить</button>`);
+ $('#sheet').dataset.keep=JSON.stringify(keep);$('#sheetBody').addEventListener('input',opCalc);opCalc()}
+const opV=id=>Math.max(0,+String(($(id)||{}).value||'').replace(',','.')||0);
+function opCalc(){const o=$('#opSum');if(!o)return;const g=opV('#opG')||100,k=opV('#opK')||Math.round(opV('#opP')*4+opV('#opF')*9+opV('#opC')*4),q=x=>Math.round(x*g/10)/10;
+ o.innerHTML=k?`<b>${fmt(Math.round(k*g/100))} ккал</b> в ${fmt(g)} г<small>Б ${q(opV('#opP'))} · Ж ${q(opV('#opF'))} · У ${q(opV('#opC'))} г</small>`:'<small>Введи калорийность на 100 г (есть на упаковке) — сразу покажу, сколько в твоей порции. Или отсканируй штрихкод.</small>'}
+function opFill(r){if(!$('#opK'))return;if(r.n&&(!$('#opN').value.trim()||r.src))$('#opN').value=r.n;$('#opK').value=Math.round(r.k100);$('#opP').value=r.p100;$('#opF').value=r.f100;$('#opC').value=r.c100;if(r.code)$('#opCode').value=r.code;opCalc();haptic('medium')}
+function opBusy(id,on,txt){const b=$(id);if(!b)return;if(on){b.dataset.t=b.textContent;b.textContent=txt;b.disabled=true}else{b.textContent=b.dataset.t||b.textContent;b.disabled=false}}
+function opLookup(body){opBusy('#opScan',1,'Ищу…');ai({type:'barcode',...body}).then(r=>{if(r.found){opFill(r);toast(r.src==='label'?'Прочитал КБЖУ с этикетки — сверь с упаковкой':'Нашёл: '+r.n)}else toast(r.code?'Штрихкод '+r.code+' нет в базе — сфотографируй таблицу КБЖУ на упаковке':'Не разобрал штрихкод — сфотографируй его крупнее или таблицу КБЖУ')}).catch(e=>toast(e.net?'Нет связи с сервером — введи КБЖУ с упаковки вручную':e.message)).finally(()=>opBusy('#opScan',0))}
+async function opScanFile(e){const f=e.target.files[0];e.target.value='';if(!f||!$('#opK'))return;let code='';
+ try{if('BarcodeDetector' in window){const bd=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e']}),r=await bd.detect(await createImageBitmap(f));code=r[0]?r[0].rawValue:''}}catch(x){}
+ if(code)return opLookup({code});
+ const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onerror=()=>toast('Не получилось открыть фото');im.onload=()=>{const c=document.createElement('canvas'),s=Math.min(1,1400/Math.max(im.width,im.height));c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);opLookup({image:c.toDataURL('image/jpeg',.88)})};im.src=rd.result};rd.readAsDataURL(f)}
+function opAIHint(){const n=$('#opN').value.trim();if(!n){toast('Напиши название продукта');$('#opN').focus();return}opBusy('#opAI',1,'Думаю…');
+ ai({type:'text',text:'100 г '+n}).then(r=>{const it=(r.items||[])[0],m=it?it:{k100:r.k*100/(r.g||100),p100:Math.round(r.p*1000/(r.g||100))/10,f100:Math.round(r.f*1000/(r.g||100))/10,c100:Math.round(r.c*1000/(r.g||100))/10};opFill({...m,n:''});toast('Средние значения — если есть упаковка, сверь с ней')}).catch(e=>toast(e.net?'Нет связи с сервером ИИ':e.message)).finally(()=>opBusy('#opAI',0))}
 function ownProductSave(){const n=$('#opN').value.trim(),v=id=>Math.max(0,+String($(id).value).replace(',','.')||0);if(!n){$('#opN').focus();return}
  const p=[n.slice(0,50),Math.round(v('#opK')),v('#opP'),v('#opF'),v('#opC'),Math.round(v('#opG'))||100];if(!p[1])p[1]=Math.round(p[2]*4+p[3]*9+p[4]*4);
  PRD=[p,...PRD.filter(x=>x[0]!==p[0])].slice(0,50);save('prd',PRD);let keep=[];try{keep=JSON.parse($('#sheet').dataset.keep||'[]')}catch(e){}
@@ -1272,7 +1293,7 @@ function textResult(v){const pf=parseFood(v);
 function guessText(t){const l=t.toLowerCase(),base=DEMO.find(d=>l.includes(d.n.split(' ')[0].toLowerCase()));
  return base?{...base}:{n:t.charAt(0).toUpperCase()+t.slice(1),g:250,k:380,p:18,f:14,c:42}}
 function analyzing(img){openSheet(head('Распознаю блюдо…','ИИ смотрит на тарелку')+(img?`<img class="photo" src="${img}" alt="Фото еды">`:'')+'<div class="scan"></div>')}
-function aiFail(er){const m=String(er&&er.message||'');openSheet(head('Не получилось распознать','Попробуй ещё раз')+`<p style="font-weight:600;line-height:1.5">${esc(/еды|фото/i.test(m)?m:'ИИ сейчас не ответил. Проверь интернет и попробуй ещё раз.')}</p><p class="note" style="text-align:left">Совет: фотографируй сверху, при хорошем свете, чтобы вся тарелка была в кадре.</p><button class="btn" data-act="cam">Сфотографировать ещё раз</button><button class="btn alt" data-act="txt" style="margin-top:8px">Описать словами</button><button class="btn alt" data-act="prod" style="margin-top:8px">Собрать из продуктов</button>`)}
+function aiFail(er){const m=String(er&&er.message||''),net=!!(er&&er.net);openSheet(head(net?'Нет связи с сервером':'Не получилось распознать',net?'Это не ошибка в приложении':'Попробуй ещё раз')+`<p style="font-weight:600;line-height:1.5">${esc(net?NETMSG:/еды|фото|лимит/i.test(m)?m:'ИИ сейчас не ответил. Попробуй ещё раз через минуту.')}</p>${net?'<button class="btn" id="toBot" style="margin-bottom:8px">📨 Отправить фото боту в чат</button>':''}<p class="note" style="text-align:left">Совет: фотографируй сверху, при хорошем свете, чтобы вся тарелка была в кадре.</p><button class="btn" data-act="cam">Сфотографировать ещё раз</button><button class="btn alt" data-act="txt" style="margin-top:8px">Описать словами</button><button class="btn alt" data-act="prod" style="margin-top:8px">Собрать из продуктов</button>`)}
 let LASTIMG='',LASTTXT='';
 function result(r,img){if(!img&&!(r.items||[]).length&&r.g){const g=r.g||100;r={...r,items:[{n:r.n,g,k100:Math.round(r.k/g*100),p100:Math.round(r.p/g*1000)/10,f100:Math.round(r.f/g*1000)/10,c100:Math.round(r.c/g*1000)/10}]}}
  if(!img&&LASTTXT&&!/\d/.test(LASTTXT))(r.items||[]).forEach(x=>{if(x.est===undefined)x.est=true});
@@ -1298,9 +1319,9 @@ function result(r,img){if(!img&&!(r.items||[]).length&&r.g){const g=r.g||100;r={
  if($('#hintGo'))$('#hintGo').onclick=()=>{const h=$('#hintIn').value.trim();if(!h){$('#hintIn').focus();return}analyzing(img);
   (img&&LASTIMG?ai({type:'photo',image:LASTIMG,hint:h}):ai({type:'text',text:(LASTTXT?LASTTXT+'. Уточнение: ':'')+h})).then(x=>result(x,img)).catch(er=>aiFail(er))};
  $('#addR').onclick=()=>{const need=one?[]:it.filter(y=>!img&&y.est);if(need.length){toast('Укажи граммы: '+need.map(y=>y.n.split(' (')[0]).join(', '));const f=document.querySelector('#ritems input.need');f&&f.focus();return}if(!r.k&&!r.g){toast('Укажи вес');return}day(selF).m[$('#rmeal').value].push({n:r.n,k:r.k,p:r.p,f:r.f,c:r.c,g:r.g,...(one?{}:{items:it.filter(y=>y.g>0).map(y=>({n:y.n,g:y.g}))}),img:img||''});closeSheet();if(view!=='food')go('food');else render();haptic('medium');toast('Добавлено: '+r.k+' ккал')}}
-function onFile(e){const f=e.target.files[0];e.target.value='';if(!f)return;const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),s=Math.min(1,160/Math.max(im.width,im.height));c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);let u='';try{u=c.toDataURL('image/jpeg',.7)}catch(x){u=''}
+function onFile(e){const f=e.target.files[0];e.target.value='';if(!f)return;const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onerror=()=>toast('Не получилось открыть это фото. Попробуй другое или сделай снимок камерой');im.onload=()=>{const c=document.createElement('canvas'),s=Math.min(1,160/Math.max(im.width,im.height));c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);let u='';try{u=c.toDataURL('image/jpeg',.7)}catch(x){u=''}
  analyzing(u);if(LIVE){const c2=document.createElement('canvas'),s2=Math.min(1,1024/Math.max(im.width,im.height));c2.width=im.width*s2;c2.height=im.height*s2;c2.getContext('2d').drawImage(im,0,0,c2.width,c2.height);LASTIMG=c2.toDataURL('image/jpeg',.85);ai({type:'photo',image:LASTIMG}).then(r=>result(r,u)).catch(er=>aiFail(er))}else setTimeout(()=>result({...DEMO[Math.floor(Math.random()*DEMO.length)]},u),1700)};im.src=rd.result};rd.readAsDataURL(f)}
-$('#file').onchange=onFile;$('#cam').onchange=onFile;
+$('#file').onchange=onFile;$('#cam').onchange=onFile;$('#scanF').onchange=opScanFile;
 
 /* ---------- timer ---------- */
 let tm=null,tEnd=0;function tick(){const tl=Math.max(0,Math.ceil((tEnd-Date.now())/1000));$('#tLeft').textContent=Math.floor(tl/60)+':'+String(tl%60).padStart(2,'0');if(tl<=0){clearInterval(tm);$('#timer').classList.remove('on');haptic('heavy');toast('Отдых окончен — следующий подход')}}
@@ -1363,7 +1384,7 @@ function machineResult(r,u){if(!r||r.error||!Array.isArray(r.ex)||!r.ex.length){
   ${mList('Настройка',x.setup)}${mList('Как делать',x.steps)}${mList('Частые ошибки',x.mistakes)}
   ${x.sets?`<p class="exwhy"><b>Для тебя:</b> ${esc(String(x.sets).slice(0,90))}</p>`:''}${m?`<button class="btn" data-tip="${esc(m)}" style="margin-top:10px">▶ Анимация: как делать правильно</button>`:''}<button class="btn alt" data-yt="${esc(String(x.video||('техника '+(x.n||'')+' '+(r.machine||''))).slice(0,120))}" style="margin-top:8px">🎬 Видео-инструкция</button></div>`}).join('')+
  (r.safety?`<div class="warn">${esc(String(r.safety).slice(0,300))}</div>`:'')+`<p class="note">ИИ может ошибаться. Если сомневаешься — уточни у тренера зала.</p><button class="btn" data-close style="margin-top:8px">Понятно</button>`)}
-$('#mach').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),k=Math.min(1,1024/Math.max(im.width,im.height));c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);let u='';try{u=c.toDataURL('image/jpeg',.82)}catch(x){}
+$('#mach').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onerror=()=>toast('Не получилось открыть это фото. Попробуй другое или сделай снимок камерой');im.onload=()=>{const c=document.createElement('canvas'),k=Math.min(1,1024/Math.max(im.width,im.height));c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);let u='';try{u=c.toDataURL('image/jpeg',.82)}catch(x){}
  openSheet(head('Определяю тренажёр…','ИИ-тренер смотрит на фото')+(u?`<img class="photo" src="${u}" alt="">`:'')+'<div class="scan"></div><p class="note">Обычно 5–15 секунд</p>');
  if(!LIVE){setTimeout(()=>machineResult(DEMO_M,u),1400);return}
  ai({type:'machine',image:u,profile:profileForAI(),allowed:EXL.map(x=>x[0])}).then(r=>machineResult(r,u)).catch(er=>{closeSheet();toast(String(er.message||'ИИ недоступен').slice(0,40))})};im.src=rd.result};rd.readAsDataURL(f)};
@@ -1444,8 +1465,9 @@ document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)r
  if(d.act){const a=d.act;if(a==='cam')$('#cam').click();if(a==='gal')$('#file').click();
   if(a==='fav'){const F=favs();openSheet(head('Недавние блюда','Добавить в '+target)+(F.length?F.map((f,i)=>`<button class="dish" data-fav="${i}" style="width:100%;text-align:left"><span class="ph">${f.img?`<img src="${f.img}" alt="">`:'⭐'}</span><div class="sp"><div class="nm">${esc(f.n)}</div><small>${f.g?f.g+' г · ':''}Б ${f.p} · Ж ${f.f} · У ${f.c}</small></div><span class="num">${f.k}</span></button>`).join(''):'<p style="font-weight:600;color:var(--mute)">Здесь появятся блюда, которые ты уже добавлял — чтобы вносить их в один тап.</p>'))}
   if(a==='txt'){openSheet(head('Опиши, что съел','Добавить в '+target)+`<textarea id="tx" rows="3" placeholder="Например: гречка 200 г, курица 150 г, огурец, 2 яйца, кофе с молоком"></textarea><p class="note" style="text-align:left">Пиши продукты через запятую и указывай граммы или штуки — посчитаю точно. Без граммов возьму обычную порцию.</p><button class="btn" id="txGo" style="margin-top:10px">Посчитать</button>`);$('#tx').focus();
-   $('#txGo').onclick=()=>{const v=$('#tx').value.trim();if(!v){$('#tx').focus();return}analyzing('');LASTIMG='';LASTTXT=v;const loc=textResult(v);if(loc){result(loc,'');return}if(LIVE)ai({type:'text',text:v}).then(r=>result(r,'')).catch(er=>aiFail(er));else setTimeout(()=>result(guessText(v),''),1100)}}
+   $('#txGo').onclick=()=>{const v=$('#tx').value.trim();if(!v){$('#tx').focus();return}analyzing('');LASTIMG='';LASTTXT=v;const loc=textResult(v);if(loc){result(loc,'');return}if(LIVE)ai({type:'text',text:v}).then(r=>result(r,'')).catch(er=>{const pf=parseFood(v);if(!pf.items.length)return aiFail(er);const r={n:pf.items.map(x=>x.n.split(' (')[0]).join(', ').slice(0,80),items:pf.items,conf:'mid'};['k','p','f','c'].forEach(x=>r[x]=Math.round(pf.items.reduce((a,y)=>a+y[x+'100']*y.g/100,0)));r.g=pf.items.reduce((a,y)=>a+y.g,0);result(r,'');toast('Посчитал по базе без ИИ. Не нашёл: '+pf.miss.join(', ')+' — добавь кнопкой «+ Добавить продукт»')});else setTimeout(()=>result(guessText(v),''),1100)}}
   if(a==='prod')builder(target);
+  if(a==='scan'){builder(target);ownProduct();$('#scanF').click()}
   if(a==='train'){closeSheet();selT=wd(today);go('train')}}
  if(d.fav!==undefined){const f=favs()[+d.fav];if(f)result({n:f.n,g:f.g||100,k:f.k,p:f.p,f:f.f,c:f.c},f.img||'')}
  if(d.set){const[i,s]=d.set.split('|').map(Number),k=dk(selT)+'#'+i,ex=(plan().days[selT]||{ex:[]}).ex[i]||{};DONE[k]=DONE[k]||[];DONE[k][s]=!DONE[k][s];render();haptic();if(DONE[k][s]&&ex.rest)startRest(ex.rest)}
@@ -1478,11 +1500,16 @@ document.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)r
   if(t.id==='plateGo')plateGo();
   if(t.id==='ownP')ownProduct();
   if(t.id==='opGo')ownProductSave();
+  if(t.id==='opScan')$('#scanF').click();
+  if(t.id==='opAI')opAIHint();
+  if(t.id==='opCodeGo'){const c=$('#opCode').value.replace(/\D/g,'');if(c.length<8){toast('В штрихкоде 8–13 цифр');$('#opCode').focus()}else opLookup({code:c})}
+  if(t.id==='toBot')toBot();
+  if(t.id==='netChk'){openSheet(head('Проверка связи','Сервер ИИ')+'<div class="scan"></div><p class="note">Проверяю…</p>');const t0=Date.now();ai({type:'sub'}).then(()=>{const ms=Date.now()-t0;openSheet(head('Проверка связи','Сервер ИИ')+`<p style="font-weight:700;line-height:1.5">✅ Связь есть, ответ за ${(ms/1000).toFixed(1)} с.</p><p class="note" style="text-align:left">${ms>4000?'Связь медленная — фото и рацион могут считаться дольше обычного.':'Фото, рацион и ИИ-тренер должны работать.'}</p>`)}).catch(e=>openSheet(head('Проверка связи','Сервер ИИ')+`<p style="font-weight:700;line-height:1.5">❌ ${esc(e.net?NETMSG:'Сервер ответил ошибкой: '+e.message)}</p><button class="btn" id="toBot">📨 Открыть чат с ботом</button>`))}
   if(t.id==='wsGo'){const v=+String($('#wsIn').value).replace(',','.');if(v>=0){setW(day(selF),v<20?v*1000:v);closeSheet();render()}}
   if(t.id==='gSub'){try{tg.openTelegramLink(NEWS_LINK)}catch(x){location.href=NEWS_LINK}}
   if(t.id==='gChk')subGate(true,true);
   if(d.yt){const u='https://www.youtube.com/results?search_query='+encodeURIComponent(d.yt);try{tg.openLink(u)}catch(x){window.open(u,'_blank')}}
-  if(t.id==='support')openSheet(head('Поддержка','Мы на связи')+`<div class="list"><button class="li" id="supW"><span class="ic">✉️</span><span class="sp">Написать в поддержку<small class="hl">Живой человек · ответ придёт в чат с ботом</small></span>›</button><button class="li" id="supAI"><span class="ic">🤖</span><span class="sp">Спросить ИИ-тренера<small class="hl">Тренировки и питание · ответ сразу</small></span>›</button></div>`);
+  if(t.id==='support')openSheet(head('Поддержка','Мы на связи')+`<div class="list"><button class="li" id="supW"><span class="ic">✉️</span><span class="sp">Написать в поддержку<small class="hl">Живой человек · ответ придёт в чат с ботом</small></span>›</button><button class="li" id="supAI"><span class="ic">🤖</span><span class="sp">Спросить ИИ-тренера<small class="hl">Тренировки и питание · ответ сразу</small></span>›</button><button class="li" id="netChk"><span class="ic">📶</span><span class="sp">Проверить связь<small class="hl">Если не работают фото или рацион</small></span>›</button></div>`);
   if(t.id==='supW'){const u='https://t.me/trener24sportlivebot?start=support';try{tg.openTelegramLink(u)}catch(x){location.href=u}}
   if(t.id==='forgetMe')openSheet(head('Удалить мои данные','Это нельзя отменить')+`<p style="font-weight:600;line-height:1.5">Удалим анкету, дневник питания, тренировки, вес и замеры — на этом телефоне и в облаке Telegram. Приложение начнётся с чистого листа.</p><button class="btn" id="forgetGo" style="margin-top:12px;background:#ff5a6e">Удалить всё</button><button class="btn alt" data-close style="margin-top:8px">Отмена</button>`);
   if(t.id==='forgetGo'){FORGOT=true;clearTimeout(csT);csQ.clear();(async()=>{if(CS){const ks=await csCall('getKeys');if(ks&&ks.length)await csCall('removeItems',ks)}
