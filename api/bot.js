@@ -164,7 +164,82 @@ async function onJoinRequest(j) {
   return tg('sendMessage', { chat_id: j.user_chat_id, text: '🔒 Тренер 24 PRO — закрытый чат для подписчиков. Оформи подписку в приложении, и заявка одобрится автоматически.', reply_markup: { inline_keyboard: [[botBtn('Открыть Тренер 24', 'pro')]] } });
 }
 
-async function onPrivate(m, app) {
+/* ---------- бот сам считает калории в чате: фото еды, текст, штрихкод ---------- */
+const BOTLIM = new Map();
+function botLimited(uid, kind, max) {
+  const k = uid + ':' + kind + ':' + new Date().toISOString().slice(0, 10), n = (BOTLIM.get(k) || 0) + 1;
+  if (BOTLIM.size > 20000) BOTLIM.clear(); BOTLIM.set(k, n); return n > max;
+}
+// Запрос к ИИ-модулю: на Vercel — к себе же, на своём сервере — через посредника. Подпись HMAC от токена, без имени и ID.
+async function foodAPI(body, host) {
+  const url = process.env.AI_PROXY || `https://${host}/api/ai`;
+  const sig = crypto.createHmac('sha256', process.env.BOT_TOKEN || '').update('t24-proxy').digest('hex');
+  try {
+    const ac = new AbortController(), t = setTimeout(() => ac.abort(), 50000);
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-t24-proxy': sig }, body: JSON.stringify(body), signal: ac.signal });
+    clearTimeout(t);
+    const j = await r.json().catch(() => ({}));
+    return r.ok ? j : { error: j.error || 'ИИ недоступен' };
+  } catch (e) { return { error: 'ИИ недоступен' }; }
+}
+async function photoData(m) {
+  const best = m.photo.filter(p => Math.max(p.width, p.height) <= 1280).pop() || m.photo[0];
+  const f = await tg('getFile', { file_id: best.file_id });
+  if (!f.ok) return '';
+  const r = await fetch(`https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${f.result.file_path}`);
+  if (!r.ok) return '';
+  return 'data:image/jpeg;base64,' + Buffer.from(await r.arrayBuffer()).toString('base64');
+}
+const R0 = x => Math.round(+x || 0), R1 = x => Math.round((+x || 0) * 10) / 10;
+function foodReply(o) {
+  const items = (o.items || []).filter(x => x.g > 0);
+  const lines = items.map(x => `• ${x.n} — ${R0(x.g)} г → ${R0(x.k100 * x.g / 100)} ккал`);
+  return `🍽 ${o.n || 'Блюдо'}\n\n` + (lines.length ? lines.join('\n') + '\n\n' : '') +
+    `Итого: ${R0(o.k)} ккал · ${R0(o.g)} г\nБ ${R0(o.p)} · Ж ${R0(o.f)} · У ${R0(o.c)}` + (o.ask ? `\n\n❓ ${o.ask}` : '') +
+    '\n\nВес я оцениваю на глаз. Знаешь граммы — напиши так: «гречка 180 г, курица 150 г», посчитаю точно. Чтобы сохранить в дневник, добавь блюдо в приложении 👇';
+}
+function packReply(o) {
+  return `🏷 ${o.n || 'Продукт'}${o.code ? ` (штрихкод ${o.code})` : ''}\n\nНа 100 г: ${R0(o.k100)} ккал · Б ${R1(o.p100)} · Ж ${R1(o.f100)} · У ${R1(o.c100)}\n\n` +
+    [50, 100, 200].map(g => `${g} г → ${R0(o.k100 * g / 100)} ккал`).join('\n') +
+    `\n\n${o.src === 'label' ? 'Значения прочитал с этикетки.' : 'Данные из базы Open Food Facts — сверь с упаковкой.'} Напиши, сколько граммов съел, например «${(o.n || 'продукт').split(' · ')[0].toLowerCase()} 120 г» — посчитаю.`;
+}
+const isQuestion = t => /\?|^(как|что|почему|зачем|сколько|можно|какой|какая|какие|когда|где|посоветуй|подскажи|помоги|составь|расскажи|объясни|нужно ли|стоит ли|привет|здравствуй|спасибо)/i.test(t.trim());
+async function onFood(m, host, rows) {
+  const chat = m.chat.id, uid = m.from && m.from.id || chat, txt = (m.text || m.caption || '').trim();
+  const kb = { reply_markup: { inline_keyboard: rows } };
+  if (m.photo) {
+    if (botLimited(uid, 'photo', 20)) return tg('sendMessage', { chat_id: chat, text: 'На сегодня лимит фото исчерпан (20). Опиши блюдо словами — посчитаю.' });
+    await tg('sendChatAction', { chat_id: chat, action: 'typing' });
+    const img = await photoData(m);
+    if (!img) return tg('sendMessage', { chat_id: chat, text: 'Не получилось скачать фото — пришли его ещё раз.' });
+    const pack = /штрих|этикет|упаков|состав|кбжу|баркод|barcode/i.test(txt);
+    if (!pack) {
+      const r = await foodAPI({ type: 'photo', image: img, hint: txt.slice(0, 200) }, host);
+      if (r && !r.error && r.k) return tg('sendMessage', { chat_id: chat, text: foodReply(r), ...kb });
+    }
+    const b = await foodAPI({ type: 'barcode', image: img }, host);
+    if (b && b.found) return tg('sendMessage', { chat_id: chat, text: packReply(b), ...kb });
+    if (b && b.error === 'ИИ недоступен') return tg('sendMessage', { chat_id: chat, text: 'ИИ сейчас не отвечает 😔 Попробуй через минуту или опиши блюдо словами.' });
+    return tg('sendMessage', { chat_id: chat, text: b && b.code ? `Штрихкод ${b.code} не нашёл в базе. Сфотографируй таблицу «Пищевая ценность» на упаковке — прочитаю с неё.` : 'Не разобрал, что на фото. Сфотографируй тарелку сверху при хорошем свете или опиши словами: «плов 300 г, салат 150 г».' });
+  }
+  if (!txt) return;
+  if (/^\d{8,14}$/.test(txt.replace(/\s/g, ''))) {
+    if (botLimited(uid, 'text', 60)) return tg('sendMessage', { chat_id: chat, text: 'На сегодня лимит запросов исчерпан — продолжим завтра.' });
+    const b = await foodAPI({ type: 'barcode', code: txt.replace(/\s/g, '') }, host);
+    return tg('sendMessage', { chat_id: chat, text: b && b.found ? packReply(b) : 'Такого штрихкода нет в базе. Сфотографируй таблицу «Пищевая ценность» на упаковке — прочитаю с неё.', ...(b && b.found ? kb : {}) });
+  }
+  await tg('sendChatAction', { chat_id: chat, action: 'typing' });
+  if (!isQuestion(txt)) {
+    if (botLimited(uid, 'text', 60)) return tg('sendMessage', { chat_id: chat, text: 'На сегодня лимит запросов исчерпан — продолжим завтра.' });
+    const r = await foodAPI({ type: 'text', text: txt.slice(0, 300) }, host);
+    if (r && !r.error && r.k) return tg('sendMessage', { chat_id: chat, text: foodReply(r), ...kb });
+  }
+  if (botLimited(uid, 'chat', 40)) return tg('sendMessage', { chat_id: chat, text: 'Давай продолжим завтра — на сегодня лимит вопросов исчерпан. В приложении есть ИИ-тренер с полным контекстом твоего плана 👇', ...kb });
+  const a = await ai(COACH + ' Это личный чат с пользователем приложения. Если просят рацион или программу — дай короткий пример и скажи, что полный план под его норму есть в приложении.', 'Вопрос: ' + txt.slice(0, 1200), 500);
+  return tg('sendMessage', { chat_id: chat, text: a || 'Сейчас не получилось ответить — попробуй чуть позже 🙏', ...kb });
+}
+
+async function onPrivate(m, app, host) {
   const name = (m.from && m.from.first_name) || '';
   const rows = [[{ text: '🔥 Открыть Тренер 24', web_app: { url: app } }]];
   const comm = [];
@@ -173,16 +248,18 @@ async function onPrivate(m, app) {
   if (comm.length) rows.push(comm);
   const txt = m.text || '';
   if (/^\/(start support|support)/.test(txt)) {
-    return tg('sendMessage', { chat_id: m.chat.id, text: '💬 Поддержка Тренер 24\n\nНапиши свой вопрос одним сообщением — можно с фото или скриншотом. Я передам его команде, ответ придёт сюда же.' });
+    return tg('sendMessage', { chat_id: m.chat.id, text: '💬 Поддержка Тренер 24\n\nНапиши свой вопрос ответом на это сообщение — можно с фото или скриншотом. Я передам его команде, ответ придёт сюда же.', reply_markup: { force_reply: true, input_field_placeholder: 'Опиши, что случилось' } });
   }
-  if (SUP_ON() && !txt.startsWith('/')) return toSupport(m);
+  const rt = m.reply_to_message;
+  if (SUP_ON() && rt && rt.from && rt.from.username === BOT && /^💬 Поддержка Тренер 24/.test(rt.text || '')) return toSupport(m);
+  if (m.photo || (txt && !txt.startsWith('/'))) return onFood(m, host, rows);
   if (/^\/(chat|community)/.test(txt)) {
     return tg('sendMessage', { chat_id: m.chat.id, text: comm.length ? 'Канал «Тренер 24»: тренировка дня, челленджи и новости приложения 💪' : 'Сообщество скоро откроется — следи за новостями!', reply_markup: { inline_keyboard: rows.slice(1).length ? rows.slice(1) : rows } });
   }
   return tg('sendMessage', {
     chat_id: m.chat.id,
     text: `Привет${name ? ', ' + name : ''}! 👋 Я — Тренер 24, твой ИИ-тренер в кармане.\n\n` +
-      '📸 Считаю калории и БЖУ по фото еды\n🏋️ Даю программу тренировок под твою цель\n📊 Слежу за весом, водой и прогрессом\n💬 Отвечаю на вопросы 24/7\n\n' +
+      '📸 Считаю калории и БЖУ по фото еды — можно прямо здесь, пришли фото или напиши «гречка 200 г»\n🏷 Пришли фото штрихкода или этикетки — найду КБЖУ продукта\n🏋️ Даю программу тренировок под твою цель\n📊 Слежу за весом, водой и прогрессом\n💬 Отвечаю на вопросы 24/7\n\n' +
       'Жми кнопку ниже — займёт 1 минуту, чтобы рассчитать твой план 👇',
     reply_markup: { inline_keyboard: rows }
   });
@@ -218,7 +295,7 @@ module.exports = async (req, res) => {
     if (u.chat_join_request) await onJoinRequest(u.chat_join_request);
     const m = u.message;
     if (m && m.chat) {
-      if (m.chat.type === 'private') await onPrivate(m, app);
+      if (m.chat.type === 'private') await onPrivate(m, app, host);
       else if (m.chat.type === 'group' || m.chat.type === 'supergroup') await onGroup(m);
     }
   } catch (e) { console.error(e); }
