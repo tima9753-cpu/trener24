@@ -29,6 +29,16 @@ const kindOf = id => (String(id) === String(COMMUNITY.open.id) ? 'open' : String
 const botBtn = (text, start) => ({ text, url: `https://t.me/${BOT}?start=${start || 'group'}` });
 
 async function ai(system, user, maxTokens, json) {
+  // На российском сервере ключа OpenAI нет: идём через посредника на Vercel, подписывая запрос токеном бота.
+  if (!process.env.OPENAI_API_KEY && process.env.AI_PROXY) {
+    try {
+      const sig = require('crypto').createHmac('sha256', process.env.BOT_TOKEN || '').update('t24-proxy').digest('hex');
+      const r = await fetch(process.env.AI_PROXY, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-t24-proxy': sig },
+        body: JSON.stringify({ type: 'raw', system, user, maxTokens: maxTokens || 500, json: !!json }) });
+      const j = await r.json();
+      return j.out == null ? null : json ? JSON.parse(j.out) : j.out;
+    } catch (e) { return null; }
+  }
   if (!process.env.OPENAI_API_KEY) return null;
   try {
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -269,7 +279,7 @@ module.exports = async (req, res) => {
   const token = process.env.BOT_TOKEN;
   if (!token) return res.status(500).json({ error: 'BOT_TOKEN не задан' });
   const host = req.headers['x-forwarded-host'] || req.headers.host;
-  const app = `https://${host}/`;
+  const app = process.env.APP_URL || `https://${host}/`;
   const q = req.query || {};
 
   if (req.method === 'GET') {
