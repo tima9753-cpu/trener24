@@ -191,12 +191,12 @@ async function photoData(m) {
   return 'data:image/jpeg;base64,' + Buffer.from(await r.arrayBuffer()).toString('base64');
 }
 const R0 = x => Math.round(+x || 0), R1 = x => Math.round((+x || 0) * 10) / 10;
-function foodReply(o) {
+function foodReply(o, exact) {
   const items = (o.items || []).filter(x => x.g > 0);
   const lines = items.map(x => `• ${x.n} — ${R0(x.g)} г → ${R0(x.k100 * x.g / 100)} ккал`);
   return `🍽 ${o.n || 'Блюдо'}\n\n` + (lines.length ? lines.join('\n') + '\n\n' : '') +
     `Итого: ${R0(o.k)} ккал · ${R0(o.g)} г\nБ ${R0(o.p)} · Ж ${R0(o.f)} · У ${R0(o.c)}` + (o.ask ? `\n\n❓ ${o.ask}` : '') +
-    '\n\nВес я оцениваю на глаз. Знаешь граммы — напиши так: «гречка 180 г, курица 150 г», посчитаю точно. Чтобы сохранить в дневник, добавь блюдо в приложении 👇';
+    (exact ? '\n\nПосчитал по твоим граммам.' : '\n\nВес я оцениваю на глаз. Знаешь граммы — напиши так: «гречка 180 г, курица 150 г», посчитаю точно.') + ' Чтобы сохранить в дневник, добавь блюдо в приложении 👇';
 }
 function packReply(o) {
   return `🏷 ${o.n || 'Продукт'}${o.code ? ` (штрихкод ${o.code})` : ''}\n\nНа 100 г: ${R0(o.k100)} ккал · Б ${R1(o.p100)} · Ж ${R1(o.f100)} · У ${R1(o.c100)}\n\n` +
@@ -232,7 +232,7 @@ async function onFood(m, host, rows) {
   if (!isQuestion(txt)) {
     if (botLimited(uid, 'text', 60)) return tg('sendMessage', { chat_id: chat, text: 'На сегодня лимит запросов исчерпан — продолжим завтра.' });
     const r = await foodAPI({ type: 'text', text: txt.slice(0, 300) }, host);
-    if (r && !r.error && r.k) return tg('sendMessage', { chat_id: chat, text: foodReply(r), ...kb });
+    if (r && !r.error && r.k) return tg('sendMessage', { chat_id: chat, text: foodReply(r, /\d\s*(г|гр|грамм\S*|кг|мл|л|шт)(?![а-яё])/i.test(txt)), ...kb });
   }
   if (botLimited(uid, 'chat', 40)) return tg('sendMessage', { chat_id: chat, text: 'Давай продолжим завтра — на сегодня лимит вопросов исчерпан. В приложении есть ИИ-тренер с полным контекстом твоего плана 👇', ...kb });
   const a = await ai(COACH + ' Это личный чат с пользователем приложения. Если просят рацион или программу — дай короткий пример и скажи, что полный план под его норму есть в приложении.', 'Вопрос: ' + txt.slice(0, 1200), 500);
