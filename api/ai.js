@@ -44,7 +44,7 @@ const who = P => `Пол ${P.sex === 'f' ? 'женский' : 'мужской'},
 
 // Лимиты на человека, чтобы один пользователь не съел бюджет на ИИ. Хранятся в памяти функции —
 // это защита от спама; точный суточный учёт появится вместе с базой данных.
-const LIM = { photo: [30, 86400], machine: [20, 86400], text: [60, 86400], chat: [60, 3600], program: [8, 86400], meal: [8, 86400] };
+const LIM = { photo: [30, 86400], machine: [20, 86400], text: [60, 86400], chat: [60, 3600], program: [8, 86400], meal: [8, 86400], barcode: [40, 86400] };
 const HITS = new Map();
 function limited(uid, type) {
   const l = LIM[type]; if (!l) return false;
@@ -135,10 +135,42 @@ function matchEx(name, allowed) {
   return bs >= 0.66 ? best : '';
 }
 
+const LABEL_PROMPT = 'Ты читаешь фото упаковки продукта. Верни только JSON: {"code":"цифры штрихкода EAN/UPC под полосками, если видны, иначе пустая строка","n":"название продукта по-русски и бренд, если видны","k100":ккал на 100 г,"p100":белки на 100 г,"f100":жиры на 100 г,"c100":углеводы на 100 г}. Значения бери из таблицы «Пищевая ценность»; если они указаны на порцию — пересчитай на 100 г. Если таблицы не видно — k100: 0. Ничего не выдумывай.';
+// Open Food Facts: открытая база штрихкодов, в т.ч. российских товаров.
+async function offLookup(code) {
+  try {
+    const ac = new AbortController(), t = setTimeout(() => ac.abort(), 7000);
+    const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_ru,brands,nutriments`, { headers: { 'User-Agent': 'Trener24/1.0 (Telegram mini app)' }, signal: ac.signal });
+    clearTimeout(t);
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (j.status !== 1 || !j.product) return null;
+    const p = j.product, nu = p.nutriments || {}, num = x => Math.round((+x || 0) * 10) / 10;
+    let k = Math.round(+nu['energy-kcal_100g'] || 0);
+    if (!k && nu.energy_100g) k = Math.round(nu.energy_100g / 4.184);
+    const n = [p.product_name_ru || p.product_name, p.brands && String(p.brands).split(',')[0]].filter(Boolean).join(' · ').slice(0, 60);
+    return { n, k100: k, p100: num(nu.proteins_100g), f100: num(nu.fat_100g), c100: num(nu.carbohydrates_100g) };
+  } catch (e) { return null; }
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
   const b = req.body || {};
-  const user = checkInitData(b.initData, process.env.BOT_TOKEN);
+  // Запросы бота с российского сервера: подписаны HMAC от токена бота, данных пользователей не содержат.
+  const psig = req.headers['x-t24-proxy'];
+  if (psig && b.type === 'raw') {
+    const want = crypto.createHmac('sha256', process.env.BOT_TOKEN || '').update('t24-proxy').digest('hex');
+    if (psig.length !== want.length || !crypto.timingSafeEqual(Buffer.from(psig), Buffer.from(want))) return res.status(401).json({ error: 'bad sig' });
+    if (limited('bot', 'chat')) return res.status(429).json({ error: 'limit' });
+    try {
+      const out = await openai([{ role: 'system', content: String(b.system || '').slice(0, 4000) }, { role: 'user', content: String(b.user || '').slice(0, 4000) }], !!b.json, Math.min(1500, +b.maxTokens || 500), 0.8);
+      return res.json({ out });
+    } catch (e) { return res.status(502).json({ error: 'ИИ временно недоступен' }); }
+  }
+  // Российский сервер сам проверяет пользователя и лимиты, а сюда шлёт запрос без имени и ID, подписанный HMAC от токена бота.
+  const viaSrv = !!psig && (() => { const w = crypto.createHmac('sha256', process.env.BOT_TOKEN || '').update('t24-proxy').digest('hex'); return psig.length === w.length && crypto.timingSafeEqual(Buffer.from(psig), Buffer.from(w)); })();
+  if (psig && !viaSrv) return res.status(401).json({ error: 'bad sig' });
+  const user = viaSrv ? { id: 'srv' } : checkInitData(b.initData, process.env.BOT_TOKEN);
   if (!user) return res.status(401).json({ error: 'Открой приложение через Telegram-бота' });
   if (b.type === 'sub') { // обязательная подписка на канал новостей; при ошибке не блокируем
     try {
@@ -149,7 +181,7 @@ module.exports = async (req, res) => {
       return res.json({ sub: ['creator', 'administrator', 'member'].includes(st) || (st === 'restricted' && !!r.result.is_member) });
     } catch (e) { return res.json({ sub: null }); }
   }
-  if (limited(user.id || 'anon', b.type)) return res.status(429).json({ error: b.type === 'chat' ? 'Слишком много сообщений подряд — передохни пару минут' : 'Лимит на сегодня исчерпан — попробуй завтра' });
+  if (!viaSrv && limited(user.id || 'anon', b.type)) return res.status(429).json({ error: b.type === 'chat' ? 'Слишком много сообщений подряд — передохни пару минут' : 'Лимит на сегодня исчерпан — попробуй завтра' });
   try {
     if (b.type === 'photo') {
       if (typeof b.image !== 'string' || !b.image.startsWith('data:image/') || b.image.length > 3e6)
@@ -165,6 +197,23 @@ module.exports = async (req, res) => {
       if (!t) return res.status(400).json({ error: 'Пустое описание' });
       const out = await openai([{ role: 'system', content: FOOD_PROMPT }, { role: 'user', content: 'Я съел: ' + t }], true, 600, 0.2);
       return res.json(cleanFood(JSON.parse(out)));
+    }
+    if (b.type === 'barcode') { // штрихкод: цифры или фото упаковки → КБЖУ на 100 г
+      let code = String(b.code || '').replace(/\D/g, '');
+      const img = typeof b.image === 'string' && b.image.startsWith('data:image/') && b.image.length < 3e6 ? b.image : '';
+      let label = null;
+      if (img) {
+        try {
+          label = JSON.parse(await openai([{ role: 'system', content: LABEL_PROMPT }, { role: 'user', content: [{ type: 'text', text: 'Прочитай штрихкод и таблицу пищевой ценности.' }, { type: 'image_url', image_url: { url: img, detail: 'high' } }] }], true, 300, 0, VISION));
+        } catch (e) { label = null; }
+        if (!code && label && label.code) code = String(label.code).replace(/\D/g, '');
+      }
+      if (!code && !img) return res.status(400).json({ error: 'Нет штрихкода' });
+      const off = /^\d{8,14}$/.test(code) ? await offLookup(code) : null;
+      const num = x => Math.round((+String(x == null ? 0 : x).replace(',', '.') || 0) * 10) / 10;
+      if (off && off.k100 > 0) return res.json({ found: true, src: 'off', code, ...off });
+      if (label && num(label.k100) > 0) return res.json({ found: true, src: 'label', code, n: String(label.n || (off && off.n) || 'Продукт').slice(0, 60), k100: Math.round(num(label.k100)), p100: num(label.p100), f100: num(label.f100), c100: num(label.c100) });
+      return res.json({ found: false, code, n: (off && off.n) || (label && label.n) || '' });
     }
     if (b.type === 'machine') {
       if (typeof b.image !== 'string' || !b.image.startsWith('data:image/') || b.image.length > 3e6)
